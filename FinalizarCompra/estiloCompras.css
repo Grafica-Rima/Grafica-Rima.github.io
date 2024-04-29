@@ -1,0 +1,391 @@
+body {
+  display: flex;
+  flex-direction: column;
+  margin-top: 70px;
+  margin-bottom: 10%;
+  background-image: url(http://127.0.0.1:5500/Imagenes/FondoBody.png);
+}
+
+.navbar {
+  width: 100%;
+  background-color: #000000;
+  padding: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+}
+
+.logo {
+  max-height: 50px;
+}
+
+.contenido-principal {
+  display: flex;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  width: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  justify-content: space-between;
+  flex-grow: 1;
+}
+
+.formulario-pago {
+  grid-area: 1 / 1;
+  width: 120%;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: #c4d6e485;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgb(0 0 0 / 47%);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+}
+
+label {
+  text-align: left;
+  font-size: 16px;
+  font-family: "Anta", sans-serif;
+  font-weight: 400;
+  color: #333;
+}
+
+input {
+  padding: 10px;
+  margin-top: 5px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+button {
+  margin-top: 15px;
+  padding: 12px 20px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s ease-in-out;
+  font-size: 16px;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+.seccion-pagos {
+  margin-left: 10px;
+  margin-top: -20px;
+  margin-right: 10px;
+  width: 90%;
+
+}
+
+.opciones-envio, .forma-pago {
+  border-radius: 8px;
+  padding: 40px 40px 40px 40px;
+  box-sizing: content-box;
+  margin-top: 20px;
+  background-color: #c4d6e485;
+  box-shadow: 0 0 10px rgb(0 0 0 / 47%);
+  height: 85%;
+}
+
+.forma-pago {
+  margin-top: 0;
+  width: 100%;
+  height: auto;
+  margin-left: 10px;
+}
+
+.opciones-entrega-domicilio, .opciones-punto-entrega {
+  display: contents;
+}
+
+.opciones-envio h2 {
+  display: flex;
+  flex-direction: column;
+  font-family: "Anta", sans-serif;
+  font-weight: 400;
+  color: #fff;
+  align-items: center;
+  background-color: cornflowerblue;
+  border-radius: 8px;
+  font-size: 30px;
+  margin-block: auto;
+  margin-top: -20px;
+}
+
+.opciones-envio p {
+  font-family: "Anta", sans-serif;
+  font-weight: 400;
+  color: #333;
+}
+
+
+.card-pago h2 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 30px;
+  margin-top: -20px;
+  background-color: cornflowerblue;
+  border-radius: 8px;
+  font-family: "Anta", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  box-sizing: content-box;
+  color: #ffffff;
+}
+
+.opciones-de-compra img {
+  text-align: center;
+  width: 164px;
+  height: 130px;
+  margin: 30px 15px 20px;
+  border-radius: 8px;
+}
+
+.opciones-de-compra {
+  text-align: center;
+}
+
+#footer {
+  background-color: #333; /* Color de fondo del footer */
+  color: white; /* Color del texto en el footer */
+  padding: 15px; /* Espaciado interno del footer */
+  text-align: center; /* Alineación del texto al centro */
+  position: fixed; /* Cambiado a posición fija */
+  width: 100%; /* Ancho del footer al 100% del viewport */
+  bottom: 0; /* Colocar el footer en la parte inferior */
+  z-index: 1000;
+  margin-left: -18px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.redes-sociales {
+  position: absolute;
+  left: 25px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 8px;
+}
+
+.redes-sociales img {
+  width: 25px; /* Ajusta este valor según sea necesario */
+  height: 25px; /* Ajusta este valor según sea necesario */
+  margin: 0 5px; /* Ajusta este valor para separar los íconos */
+  border-radius: 8px;
+}
+
+.enlaces-footer a{
+  bottom: 50%;
+  transform: translateY(-50%);
+  color: #ffffff;
+}
+
+a:visited {
+  color: inherit;
+}
+
+.logo-footer {
+  border-radius: 8px;
+  max-height: 70px;
+  position: absolute;
+  right: 90px;
+  margin-right: -50px;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.7);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%;
+  max-width: 600px;
+  position: relative;
+}
+
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#privacidadModalContent h1, #trabajaModalContent h1, #nosotrosModalContent h1{
+  font-family: "Permanent Marker", cursive;
+  font-weight: 400;
+  font-style: oblique;
+}
+
+#privacidadModalContent, #trabajaModalContent, #nosotrosModalContent p {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+@media (max-width: 600px) {
+  .body {
+    margin-bottom: 165px;
+  }
+
+  .navbar {
+    padding: 25px;
+  }
+
+  .logo {
+    max-height: 70px;
+    text-align: center;
+    margin-right: 25px;
+  }
+
+  .contenido-principal {
+    margin-top: 50px;
+    margin-bottom: 230px;
+    flex-direction: column;
+
+  }
+
+  .seccion-pagos {
+    width: 100%;
+    margin-top: 5px;
+    margin-left: 0;
+  }
+
+  .forma-pago {
+    margin-top: 25px;
+    width: 78%;
+    height: fit-content;
+    margin-left: 0;
+  }
+
+  .opciones-envio {
+    margin-bottom: 30px;
+  }
+
+  .formulario-pago {
+    width: 100%;
+  }
+
+  .opciones-de-compra img {
+    text-align: center;
+    width: 105px;
+    height: 80px;
+    margin: 0 15px 20px;
+    border-radius: 8px;
+  }
+
+  #footer {
+    padding-top: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px; /* Ajusta la altura automáticamente según el contenido */
+    margin-top: auto;
+  }
+
+  .redes-sociales img {
+    width: 30px;
+    height: 30px;
+    margin: 0 5px;
+  }
+
+  .logo-footer {
+    max-height: 70px;
+    margin-top: 90px;
+    right: 168px;
+  }
+
+  .redes-sociales {
+    position: static;
+    margin-top: 10px;
+  }
+
+  .enlaces-footer {
+    position: static;
+    margin-top: 10px;
+  }
+
+  .modal-content {
+    background-color: #fefefe;
+    margin: 30% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px;
+    position: relative;
+  }
+}
+
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  border-radius: 8px; /* Añade bordes redondeados */
+  overflow: hidden; /* Evita que los bordes redondeados sean afectados por el borde colapsado */
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Añade una sombra suave */
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+  font-family: 'Arial', sans-serif; /* Cambia la fuente */
+}
+
+/* Estilos para la cabecera de la tabla */
+table th {
+  background-color: #f2f2f2;
+}
+
+/* Estilos para las filas impares de la tabla */
+table tr:nth-child(odd) {
+  background-color: #f9f9f9;
+}
+
+/* Estilos para las filas pares de la tabla */
+table tr:nth-child(even) {
+  background-color: #ffffff;
+}
+
+/* Estilos para el total */
+.total {
+  font-weight: bold;
+}
+
+/* Agregar color a los bordes */
+table th, table td {
+  border: 1px solid #ccc;
+}
+
+/* Agregar color de fondo a las celdas de total */
+.total {
+  background-color: #ffc107; /* Color amarillo */
+}

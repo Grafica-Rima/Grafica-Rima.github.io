@@ -1,0 +1,60 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+.container {
+    display: flex;
+    height: 100vh; /* Ocupar toda la altura de la pantalla */
+    background-color: red;
+}
+
+.image-container {
+    flex: 1; /* Ocupar la mitad izquierda de la página */
+    display: flex;
+    justify-content: center; /* Centrar horizontalmente */
+    align-items: center; /* Centrar verticalmente */
+    background-color: #000000; /* Color de fondo de la mitad izquierda */
+}
+
+.image-container img {
+    max-width: 80%; /* Limitar el tamaño máximo de la imagen */
+    max-height: 80%; /* Limitar el tamaño máximo de la imagen */
+    margin-left: 80px;
+}
+
+.text-container {
+    flex: 1; /* Ocupar la mitad derecha de la página */
+    display: flex;
+    justify-content: center; /* Centrar horizontalmente */
+    align-items: center; /* Centrar verticalmente */
+    background-color: #e5e5e5; /* Color de fondo de la mitad derecha */
+}
+
+.text-container p {
+    color: #000000; /* Color del texto */
+    font-size: 40px; /* Tamaño de fuente */
+    text-align: center; /* Alinear el texto al centro */
+    max-width: 80%; /* Limitar el ancho máximo del texto */
+    font-family: "Open Sans", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 400;
+    font-style: normal;
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column; /* Apilar los contenedores en pantallas más pequeñas */
+    }
+
+    .image-container img {
+        margin-left: 0; /* Eliminar el margen izquierdo en pantallas más pequeñas */
+        margin-bottom: 20px; /* Agregar un espacio entre la imagen y el texto */
+        margin-left: 35px;
+    }
+
+    .text-container p {
+        font-size: 24px; /* Reducir el tamaño de fuente en pantallas más pequeñas */
+    }
+}

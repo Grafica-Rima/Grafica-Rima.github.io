@@ -1,0 +1,793 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #ffffff;
+    margin-bottom: 100px;
+    background-image: url(http://127.0.0.1:5500/Imagenes/FondoBody.png);
+    }
+
+  .navbar {
+    position: fixed;
+    height: 50px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    padding: 0;
+    background-color: #000000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+  }
+
+  .producto {
+    background-color: #ffffff;
+  }
+
+  .destino {
+    list-style: none; /* Quitar los puntos de la lista */
+    display: flex; /* Usar un contenedor flexible */
+    justify-content: space-around; /* Distribuir el espacio alrededor de los elementos */
+    align-items: center; /* Centrar verticalmente los elementos */
+    margin-left: auto;
+  }
+  
+  .destino li {
+    margin: 0; /* Eliminar márgenes de los elementos de la lista */
+    color: #ffffff;
+  }
+  
+  .destino a {
+    text-decoration: none;
+    color: inherit;
+  }  
+
+  .destino li {
+    margin: 0 10px;
+    color: #ffffff;
+  }
+
+
+.logo {
+    max-height: 50px; /* Ajusta la altura del logo según sea necesario */
+    margin-left: -10px;
+ }
+  
+ header {
+    background-image: url('http://127.0.0.1:5500/Imagenes/principal2.png'); /* Ruta de la imagen de fondo del header */
+    color: rgb(0, 0, 0);
+    text-align: center;
+    padding: 200px 0;
+    background-size: cover;
+ }
+
+.header-content {
+    display: inline-block;
+    background-color: rgba(0, 0, 0, 0);
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 0 150px rgb(0, 0, 0); /* Sombra para resaltar el contenido */
+    border: 1px solid #000;
+ }
+
+ @keyframes slideIn {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+  h1 {
+    font-family: "Manrope", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 500;
+    font-style: normal;
+    font-size: 30px;
+    color: #000000;
+    animation: slideIn 2s ease-in-out;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  h3 {
+    font-family: "Open Sans", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 650;
+    font-style: normal;
+  }
+
+  .blancas {
+    font-size: 40px;
+    text-align: center;
+    background: linear-gradient(to right, #5d5d5d, #ffffff, #5d5d5d);
+    color: #000000;
+    padding: 10px;
+    border-radius: 8px;
+    display: block;
+    font-family: "Pacifico", cursive;
+    font-weight: 400;
+    font-style: normal;
+  }
+
+  .colores {
+    font-size: 40px;
+    text-align: center;
+    background: linear-gradient(to right, #db7070, #db9090, #00f1c9, #77becf, #e0f38d);
+    color: #000000;
+    padding: 10px;
+    border-radius: 8px;
+    display: block;
+    font-family: "Pacifico", cursive;
+    font-weight: 400;
+    font-style: normal;
+  }
+  
+  #productos {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+    align-items: flex-start;
+    padding: 20px;
+  }
+  
+  .card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px;
+    cursor: pointer;
+    transition: transform 0.3s;
+    text-align: center;
+  }
+  
+  .card:hover {
+    transform: scale(1.05);
+  }
+
+  
+  
+  button {
+    padding: 10px;
+    background-color: #333; /* Color de fondo del botón */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  button:hover {
+    background-color: #555; /* Color de fondo del botón al pasar el mouse */
+  }
+  
+.carrito {
+  margin-left: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
+  
+  .carrito img {
+    width: 30px;
+    margin-right: 5px;
+  }
+
+  #contadorCarrito {
+    color: white; /* Color blanco para el contador del carrito */
+    margin-right: 30px;
+}
+  
+.card-subsection {
+  width: 400px;
+  box-sizing: border-box;
+  padding: none;
+}
+
+/* Estilo para la subcard izquierda en la sección carga-archivos */
+.carga-archivos-left {
+  background: url('http://127.0.0.1:5500/Imagenes/FondoCarga2.jpg') center;
+  flex: 1;
+  border-style: dotted;/* Borde de color negro */
+  border-radius: 8px; /* Borde redondeado */
+  box-sizing: border-box; /* Evitar que el borde afecte el tamaño total */
+  margin-right: 10px;
+  width: 100%;
+}
+
+/* Estilo adicional para mejorar la apariencia */
+.carga-archivos-left h2 {
+  font-family: "Pompiere", sans-serif;
+  font-weight: 700;
+  font-style: normal;
+  font-size: 40px;
+  color: #000000;
+}
+
+.carga-archivos-left p {
+  margin-bottom: 15px; /* Separación entre el párrafo y el siguiente elemento */
+  font-family: "Pompiere", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 25px;
+  color: #000000;
+}
+
+.carga-archivos-left input,
+.carga-archivos-left button {
+  padding: 10px; /* Añadir un poco de espacio interno para los elementos de entrada */
+  margin-top: 10px; /* Separación entre el archivo de entrada y el botón */
+}
+
+
+/* Estilo específico para la parte derecha con imagen de fondo */
+.carga-archivos-right {
+  background: url('http://127.0.0.1:5500/Imagenes/FondoCarga.jpg') center/cover; /* Ajusta la ruta de la imagen */
+  color: #fff; /* Color del texto en la parte derecha */
+  text-align: center;
+  border-radius: 8px;
+  flex: 1; /* Esto hace que ambas subcards ocupen el mismo espacio */
+  box-sizing: border-box;
+  padding: 50px;
+  background-size: cover; /* Ajusta el tamaño de la imagen manteniendo su relación de aspecto */
+}
+
+
+/* Estilo para el texto dentro de la parte derecha */
+.imagen-preview {
+  padding-left: 100px;
+  padding-right: 100px;
+  font-family: "Pompiere", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+  font-size: 50px;
+  color: #000000;
+  line-height: 1.5;
+}
+
+.archivo {
+  background-color: #ffffff;
+  border: 1px solid #000;
+  border-radius: 8px;
+  box-sizing: content-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 200px;
+  justify-content: center;
+}
+
+/* Estilo para la card principal */
+.card-card-carga-archivos {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch; /* Ajusta el tamaño de las subcards */
+  background-color: #fff; /* Color de fondo de la card principal */
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  margin: 20px;
+  box-sizing: border-box;
+  overflow: hidden; /* Evitar que el contenido sobresalga al aumentar el tamaño */
+  transition: height 0.3s;
+}
+
+/* Estilo sección formulario y envíos */
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 5px;
+}
+
+.card-envios {
+  display: flex;
+  width: 80%;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-right: 10px;
+}
+
+.subcard-imagen {
+  flex: 1;
+  background: url('http://127.0.0.1:5500/Imagenes/ImagenEnvio.png') center/cover;
+  color: #fff;
+  padding: 20px;
+  box-sizing: border-box;
+  background-size: contain;
+  background-position: center;
+}
+
+.subcard-formulario-contacto {
+  flex: 1;
+  padding: 20px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.subcard-formulario-contacto form {
+  display: grid;
+  grid-gap: 10px;
+}
+
+.subcard-formulario-contacto label {
+  font-weight: bold;
+}
+
+#button {
+  color: white;
+  border-radius: 8px;
+}
+
+.subcard-formulario-contacto input,
+.subcard-formulario-contacto textarea {
+  width: 100%;
+  padding: 9px;
+  box-sizing: border-box;
+  margin-top: 10px;
+}
+
+.subcard-formulario-contacto button {
+  background-color: #4caf50;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.subcard-formulario-contacto button:hover {
+  background-color: #45a049;
+}
+
+/* Estilos del footer */
+.container-footer {
+  background-color: #333; /* Color de fondo del footer */
+  color: white; /* Color del texto en el footer */
+  padding: 5px; /* Espaciado interno del footer */
+  text-align: center; /* Alineación del texto al centro */
+  position: fixed; /* Cambiado a posición fija */
+  width: 100%; /* Ancho del footer al 100% del viewport */
+  bottom: 0; /* Colocar el footer en la parte inferior */
+  display: none;
+  z-index: 1000;
+}
+
+.redes-sociales {
+  position: absolute;
+  left: 25px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 8px;
+}
+
+.redes-sociales img {
+  width: 25px; /* Ajusta este valor según sea necesario */
+  height: 25px; /* Ajusta este valor según sea necesario */
+  margin: 0 5px; /* Ajusta este valor para separar los íconos */
+  border-radius: 8px;
+}
+
+.enlaces-footer a{
+  bottom: 50%;
+  transform: translateY(-50%);
+  color: #ffffff;
+}
+
+a:visited {
+  color: inherit;
+}
+
+.logo-footer {
+  border-radius: 8px;
+  max-height: 70px;
+  position: absolute;
+  right: 90px;
+  margin-right: -50px;
+}
+
+@media (max-width: 600px) {
+  body {
+    margin-bottom: 260px;/* Ajusta el valor según la altura de tu footer */
+  }
+
+  .navbar {
+    height: min-content;
+    flex-direction: column;
+    top: 0;
+    left: 0;
+    width: 103vw;
+    z-index: 1000;
+    padding: 0;
+    background-color: #000000;
+    align-items: center;
+    position: fixed;
+ }
+
+ .blancas {
+  font-family: "Pacifico", cursive;
+  font-weight: 400;
+  font-style: normal;
+  font-size: x-large;
+ }
+
+ .colores {
+  font-family: "Pacifico", cursive;
+  font-weight: 400;
+  font-style: normal;
+  font-size: x-large;
+ }
+
+ .destino {
+  margin: auto;
+  margin-top: 10px;
+  font-size: 20px;
+ }
+
+ #searchInput {
+  display: block;
+ }
+
+ .search-form {
+  margin-right: 620px;
+  margin-top: 25px;
+  margin-bottom: 10px;
+ }
+
+ .sidenav h2 {
+  font-size: 25px;
+  margin-top: auto;
+ }
+
+ .sidenav a {
+  margin-top: 10px;
+ }
+
+ .eliminar-producto {
+  width: 20px;
+  height: 20px;
+ }
+
+  ul {
+    margin-top: 1em;
+    padding: 0;
+  }
+
+  ul li {
+    margin: 0.5em 0;
+    font-size: 20px;
+  }
+
+  .logo {
+    max-height: 90px;
+  }
+
+  header {
+    padding: 1em;
+    background-position: top; /* Ajusta la posición del fondo */
+    margin-top: 205px;
+  }
+
+  .header-content {
+    max-width: none;
+    padding: 10px;
+    max-width: 100%; /* Ensure content takes full width */
+    max-width: 100%; /* Ensure content takes full width */
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  .card {
+    max-width: none;
+  }
+
+  .carrito img {
+    width: 20px;
+  }
+
+  .container-footer {
+    padding-top: 20px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px; /* Ajusta la altura automáticamente según el contenido */
+    margin-top: auto;
+  }
+
+  .redes-sociales img {
+    width: 30px;
+    height: 30px;
+    margin: 0 5px;
+  }
+
+  .logo-footer {
+    max-height: 70px;
+    margin-top: 83px;
+    right: 166px
+  }
+
+  .card-card-carga-archivos {
+    flex-direction: column;
+  }
+
+  .carga-archivos-left,
+  .carga-archivos-right {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .carga-archivos-left input {
+    width: -webkit-fill-available;
+  }
+
+
+  .archivo {
+    margin: 10px;
+  }
+
+  .container,
+  .card-envios {
+    flex-direction: column;
+    width: 97%;
+  }
+
+  .redes-sociales {
+    position: static;
+    margin-top: 10px;
+  }
+
+  .enlaces-footer {
+    position: static;
+    margin-top: 10px;
+  }
+
+  .carga-archivos-right{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    padding: 20px;
+    width: 100%;
+    margin-right: 0;
+    margin-top: 10px;
+  }
+
+  .imagen-preview {
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 30px; /* Ajusta el tamaño del texto según sea necesario */
+  }
+
+  .subcard-imagen {
+    background-size: cover; /* Ajusta el tamaño del fondo para mostrar todo el contenido */
+    padding: 70px;
+  }
+
+
+  .modal {
+    margin-top: 100px;
+  }
+
+  .close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 35px;
+  }
+
+  .sidenav {
+    margin-top: 140px;
+    max-width: max-content;
+  }
+
+  #contadorCarrito {
+    color: white;
+    margin-right: 5px;
+    font-size: 25px;
+    margin-top: -58px;
+  }
+
+  .carrito img {
+    width: 65px;
+    height: 65px;
+    margin-top: -58px;
+    margin-left: 260px;
+  }
+
+  .subcard-formulario-contacto {
+    flex: 1;
+    padding: 40px;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+  .modal-content {
+    background-color: #fefefe;
+    margin: 30% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 600px;
+    position: relative;
+  }
+}
+
+.sidenav {
+  height: 100%;
+  max-width: 380px;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  right: 0;
+  background-color: #bfd6cf;
+  overflow-x: hidden;
+  transition: 0.5s;
+  padding-top: 50px;
+  border: 0.1px solid #000;
+  display: inline;
+  text-align: center;
+}
+
+.sidenav a {
+  font-size: 28px;
+  color: #000000;
+  display: block;
+  transition: 0.3s;
+  text-align: right;
+  margin-right: 10px;
+}
+
+.sidenav a:hover {
+  color: #000000;
+}
+
+.sidenav h2 {
+  color: #000;
+  text-align: center;
+}
+
+.sidenav p {
+  margin-top: 20px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.sidenav button {
+  background-color: #28a745;
+  color: white;
+  padding: 10px 35px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 18px;
+  margin-top: 10px;
+}
+
+.sidenav button:hover {
+  background-color: #218838;
+}
+
+#listaCarritoSidebar {
+  display: contents;
+  text-align: left;
+}
+
+#sidebar {
+  display: none;
+}
+
+.cantidad {
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.cajacantidad {
+  padding: 5px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+/* Agrega este código CSS al final de tu archivo estilo.css */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.7);
+}
+
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto;
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%;
+  max-width: 600px;
+  position: relative;
+}
+
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+#privacidadModalContent h1, #trabajaModalContent h1, #nosotrosModalContent h1{
+  font-family: "Permanent Marker", cursive;
+  font-weight: 400;
+  font-style: oblique;
+}
+
+#privacidadModalContent, #trabajaModalContent, #nosotrosModalContent p {
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.eliminar-producto {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  float: none;
+  margin-right: 10px;
+  border-radius: 5px;
+}
+
+.search-form {
+  display: flex; /* Hacer que los elementos hijos se alineen en una fila */
+  align-items: center; /* Centrar verticalmente los elementos */
+  margin-left: 150px;
+}
+
+#searchInput {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px 0 0 5px; /* Ajusta los bordes */
+  margin-left: 350px;
+}
+
+#searchInput:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+#searchInput::placeholder {
+  color: #aaa;
+}
+
+.search-form button {
+  padding: 8px 15px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 0 5px 5px 0; /* Ajusta los bordes */
+  cursor: pointer;
+}
+
+.search-form button:hover {
+  background-color: #0056b3;
+}
