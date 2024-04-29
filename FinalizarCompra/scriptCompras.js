@@ -388,7 +388,7 @@ function validarFormulario() {
 // Función para redireccionar a la página finalizada
 function redireccionarAFinalizada() {
   // Redirigir a la página finalizada.html
-  window.location.href = "http://127.0.0.1:5500/FinalizarCompra/Pagfin/finalizada.html";
+  window.location.href = "https://grafica-rima.github.io/FinalizarCompra/Pagfin/finalizada.html";
 }
 
 // Las funciones de validación individuales y otros códigos relacionados deben ir aquí

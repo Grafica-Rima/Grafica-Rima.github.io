@@ -38,7 +38,7 @@ function actualizarListaCarrito() {
   carrito.forEach(producto => {
     const listItem = document.createElement('li');
     const iconoBasura = document.createElement('img');
-    iconoBasura.src = 'http://127.0.0.1:5500/Imagenes/basura.jpg';
+    iconoBasura.src = 'https://grafica-rima.github.io/Imagenes/basura.jpg';
     iconoBasura.alt = 'Eliminar';
     iconoBasura.classList.add('eliminar-producto');
 
