@@ -3,7 +3,7 @@ body {
   flex-direction: column;
   margin-top: 70px;
   margin-bottom: 10%;
-  background-image: url(http://127.0.0.1:5500/Imagenes/FondoBody.png);
+  background-image: url(https://grafica-rima.github.io/Imagenes/FondoBody.png);
 }
 
 .navbar {
