@@ -3,7 +3,7 @@ body {
     font-family: Arial, sans-serif;
     background-color: #ffffff;
     margin-bottom: 100px;
-    background-image: url(http://127.0.0.1:5500/Imagenes/FondoBody.png);
+    background-image: url(https://grafica-rima.github.io/Imagenes/FondoBody.png);
     }
 
   .navbar {
@@ -55,7 +55,7 @@ body {
  }
   
  header {
-    background-image: url('http://127.0.0.1:5500/Imagenes/principal2.png'); /* Ruta de la imagen de fondo del header */
+    background-image: url('https://grafica-rima.github.io/Imagenes/principal2.png'); /* Ruta de la imagen de fondo del header */
     color: rgb(0, 0, 0);
     text-align: center;
     padding: 200px 0;
@@ -191,7 +191,7 @@ body {
 
 /* Estilo para la subcard izquierda en la sección carga-archivos */
 .carga-archivos-left {
-  background: url('http://127.0.0.1:5500/Imagenes/FondoCarga2.jpg') center;
+  background: url('https://grafica-rima.github.io/Imagenes/FondoCarga2.jpg') center;
   flex: 1;
   border-style: dotted;/* Borde de color negro */
   border-radius: 8px; /* Borde redondeado */
@@ -227,7 +227,7 @@ body {
 
 /* Estilo específico para la parte derecha con imagen de fondo */
 .carga-archivos-right {
-  background: url('http://127.0.0.1:5500/Imagenes/FondoCarga.jpg') center/cover; /* Ajusta la ruta de la imagen */
+  background: url('https://grafica-rima.github.io/Imagenes/FondoCarga.jpg') center/cover; /* Ajusta la ruta de la imagen */
   color: #fff; /* Color del texto en la parte derecha */
   text-align: center;
   border-radius: 8px;
@@ -298,7 +298,7 @@ body {
 
 .subcard-imagen {
   flex: 1;
-  background: url('http://127.0.0.1:5500/Imagenes/ImagenEnvio.png') center/cover;
+  background: url('https://grafica-rima.github.io/Imagenes/ImagenEnvio.png') center/cover;
   color: #fff;
   padding: 20px;
   box-sizing: border-box;
