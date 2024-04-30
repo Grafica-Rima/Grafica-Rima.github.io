@@ -760,6 +760,7 @@ a:visited {
 .search-form {
   display: flex; /* Hacer que los elementos hijos se alineen en una fila */
   align-items: center; /* Centrar verticalmente los elementos */
+  margin-left: 160px;
 }
 
 #searchInput {
