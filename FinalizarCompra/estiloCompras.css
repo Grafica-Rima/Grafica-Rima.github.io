@@ -88,7 +88,7 @@ button:hover {
 
 }
 
-.opciones-envio, .forma-pago {
+.opciones-envio {
   border-radius: 8px;
   padding: 40px 40px 40px 40px;
   box-sizing: content-box;
@@ -98,12 +98,6 @@ button:hover {
   height: 85%;
 }
 
-.forma-pago {
-  margin-top: 0;
-  width: 100%;
-  height: auto;
-  margin-left: 10px;
-}
 
 .opciones-entrega-domicilio, .opciones-punto-entrega {
   display: contents;
@@ -127,6 +121,32 @@ button:hover {
   font-family: "Anta", sans-serif;
   font-weight: 400;
   color: #333;
+}
+
+.img {
+  width: 100px;
+  height: 100px;
+  margin: 20px;
+  border-radius: 10px;
+}
+
+.opago {
+  display: flex;
+  flex-direction: column;
+  font-family: "Anta", sans-serif;
+  font-weight: 400;
+  color: #fff;
+  align-items: center;
+  background-color: cornflowerblue;
+  border-radius: 8px;
+  font-size: 30px;
+  margin-block: auto;
+  margin-top: 50px;
+  margin-bottom: 10px;
+}
+
+.opago2 {
+  text-align: center;
 }
 
 
@@ -274,13 +294,6 @@ a:visited {
   .seccion-pagos {
     width: 100%;
     margin-top: 5px;
-    margin-left: 0;
-  }
-
-  .forma-pago {
-    margin-top: 25px;
-    width: 78%;
-    height: fit-content;
     margin-left: 0;
   }
 
