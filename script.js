@@ -31,36 +31,41 @@ function mostrarDetalles(nombre, precio) {
 function actualizarListaCarrito() {
   const listaCarritoSidebar = document.getElementById('listaCarritoSidebar');
   const totalCarritoSidebar = document.getElementById('totalCarritoSidebar');
+  const finalizarCompraSidebar = document.getElementById('finalizarCompraSidebar');
 
   listaCarritoSidebar.innerHTML = '';
 
   let totalCarrito = 0;
   carrito.forEach(producto => {
-    const listItem = document.createElement('li');
-    const iconoBasura = document.createElement('img');
-    iconoBasura.src = 'https://grafica-rima.github.io/Imagenes/basura.jpg';
-    iconoBasura.alt = 'Eliminar';
-    iconoBasura.classList.add('eliminar-producto');
+      const listItem = document.createElement('li');
+      const iconoBasura = document.createElement('img');
+      iconoBasura.src = 'https://grafica-rima.github.io/Imagenes/basura.jpg';
+      iconoBasura.alt = 'Eliminar';
+      iconoBasura.classList.add('eliminar-producto');
 
-    iconoBasura.dataset.nombre = producto.nombre;
+      iconoBasura.dataset.nombre = producto.nombre;
 
-    iconoBasura.addEventListener('click', function() {
-      const nombreProducto = this.dataset.nombre;
-      eliminarProducto(nombreProducto);
-    });
+      iconoBasura.addEventListener('click', function() {
+          const nombreProducto = this.dataset.nombre;
+          eliminarProducto(nombreProducto);
+      });
 
-    listItem.appendChild(iconoBasura);
+      listItem.appendChild(iconoBasura);
 
-    const contenidoProducto = `${producto.nombre} x${producto.cantidad} - $${producto.precio * (producto.cantidad || 1)}`;
-    listItem.appendChild(document.createTextNode(contenidoProducto));
+      const contenidoProducto = `${producto.nombre} x${producto.cantidad} - $${producto.precio * (producto.cantidad || 1)}`;
+      listItem.appendChild(document.createTextNode(contenidoProducto));
 
-    listaCarritoSidebar.appendChild(listItem);
+      listaCarritoSidebar.appendChild(listItem);
 
-    totalCarrito += producto.precio * (producto.cantidad || 1);
+      totalCarrito += producto.precio * (producto.cantidad || 1);
   });
 
   totalCarritoSidebar.textContent = `$${totalCarrito.toFixed(2)}`;
+
+  // Mostrar u ocultar el botón "Finalizar Compra" según la cantidad de productos en el carrito
+  finalizarCompraSidebar.style.display = carrito.length > 0 ? 'block' : 'none';
 }
+
 
 function eliminarProducto(nombre) {
   carrito = carrito.filter(producto => producto.nombre !== nombre);
