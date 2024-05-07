@@ -150,34 +150,39 @@ document.addEventListener("DOMContentLoaded", function () {
 function validarNombre() {
   let nombreInput = document.getElementById("nombre");
   let nombreValue = nombreInput.value.trim().toUpperCase(); // Convertir a mayúsculas
-  let regexNombreTitular = /^[A-Z\s']+$/; // Modificar la expresión regular para aceptar solo mayúsculas
+  let regexNombreTitular = /^[A-Z]+(?:\s[A-Z]+)*$/; // Expresión regular para aceptar solo mayúsculas y un espacio entre palabras
 
   // Verificar si el campo tiene algún valor
   if (nombreValue === "") {
-    alert("Ingrese su nombre completo");
-    return false;
+      alert("Ingrese su nombre completo");
+      return false;
   }
 
+  // Eliminar espacios innecesarios entre palabras
+  nombreValue = nombreValue.replace(/\s+/g, ' ');
+
   // Verificar si hay al menos dos palabras
-  let palabras = nombreValue.split(/\s+/);
+  let palabras = nombreValue.split(' ');
   if (palabras.length < 2) {
-    alert("Ingrese correctamente el nombre");
-    nombreInput.value = "";
-    return false;
+      alert("Ingrese correctamente el nombre");
+      nombreInput.value = "";
+      return false;
   }
 
   // Realizar la validación solo si hay datos
   if (!regexNombreTitular.test(nombreValue)) {
-    alert("Ingrese un nombre válido");
-    nombreInput.value = "";
-    return false;
+      alert("Ingrese un nombre válido");
+      nombreInput.value = "";
+      return false;
   }
 
-  // Actualizar el valor del campo con el nombre convertido a mayúsculas
+  // Actualizar el valor del campo con el nombre convertido a mayúsculas y sin espacios innecesarios
   nombreInput.value = nombreValue;
 
   return true;
 }
+
+
 
 
 
@@ -264,29 +269,35 @@ function validarCVV() {
 function validarDomicilio() {
   // Obtener el valor del campo de domicilio
   let domicilioInput = document.getElementById("domicilio");
+  let domicilioValue = domicilioInput.value.trim(); // Eliminar espacios innecesarios
 
   // Verificar si el campo está vacío
-  if (domicilioInput.value.trim() === "") {
-    // No hacer nada si el campo está vacío
-    return true;
+  if (domicilioValue === "") {
+      // No hacer nada si el campo está vacío
+      return true;
   }
 
-  // Validar el formato del domicilio permitiendo coma (",")
-  const formatoDomicilio = /^[A-Za-z0-9\s]+ \d+, [A-Za-z\s]+$/;
-  
-  if (!formatoDomicilio.test(domicilioInput.value.trim())) {
-    // Mostrar alerta si el formato no es válido
-    alert('El formato del domicilio no es válido. Ejemplo válido: "Nombre de calle" "123" "," "Localidad".');
-    domicilioInput.value = "";
-    // Puedes agregar más acciones aquí según tus necesidades
-    return false;
+  // Reemplazar espacios adicionales entre palabras y números con un solo espacio
+  domicilioValue = domicilioValue.replace(/\s+/g, ' ');
+
+  // Validar el formato del domicilio permitiendo hasta cinco palabras antes de los números,
+  // coma (",") y un espacio después de la coma
+  const formatoDomicilio = /^(\b[A-Za-z]+\b\s){1,5}\d+,\s*[A-Za-z\s]+$/;
+
+  if (!formatoDomicilio.test(domicilioValue)) {
+      // Mostrar alerta si el formato no es válido
+      alert('El formato del domicilio no es válido. Ejemplo válido: "Nombre de calle" "123" "," "Localidad".');
+      domicilioInput.value = "";
+      // Puedes agregar más acciones aquí según tus necesidades
+      return false;
   }
 
-  // No se encontraron problemas, el domicilio es válido
+  // Actualizar el valor del campo con el domicilio sin espacios innecesarios
+  domicilioInput.value = domicilioValue;
+
   return true;
 }
 
-  
 
 
 
