@@ -186,7 +186,7 @@ button:hover {
   width: 100%; /* Ancho del footer al 100% del viewport */
   bottom: 0; /* Colocar el footer en la parte inferior */
   z-index: 1000;
-  margin-left: -18px;
+  margin-left: -28px;
   font-family: Arial, Helvetica, sans-serif;
 }
 
