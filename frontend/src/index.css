@@ -1,0 +1,148 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #0f0f0f; /* Dark minimalistic background */
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+  overflow: hidden; /* No scroll */
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 800px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+  margin-bottom: 0.5rem;
+}
+
+.search-box {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+input {
+  padding: 0.8em 1.2em;
+  font-size: 1.2em;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background-color: #1a1a1a;
+  color: white;
+  width: 300px;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.8em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #1a1a1a;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+
+.price-display {
+  font-size: 6em;
+  font-weight: bold;
+  font-family: 'Courier New', Courier, monospace;
+  margin: 0;
+  color: #fff;
+  transition: color 0.3s ease;
+}
+
+.price-up { color: #4caf50; }
+.price-down { color: #f44336; }
+
+.signal-card {
+  background-color: #1e1e1e;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 200px;
+  justify-content: center;
+}
+
+.status-scanning {
+  color: #888;
+  font-style: italic;
+  animation: pulse 2s infinite;
+}
+
+.signal-active {
+  border: 2px solid;
+}
+
+.signal-LONG { border-color: #4caf50; }
+.signal-SHORT { border-color: #f44336; }
+
+.signal-header {
+  font-size: 2em;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.trade-details {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 0.8em;
+  color: #aaa;
+  margin-bottom: 0.2em;
+}
+
+.value {
+  font-size: 1.5em;
+  font-family: monospace;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.5; }
+  50% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
