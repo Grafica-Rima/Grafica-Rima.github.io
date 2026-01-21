@@ -1,0 +1,13 @@
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4309]
+INFO:     Started server process [6629]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+Starting Trading Loop...
+Warning: Binance API restricted (Error 451). Switching to MOCK MODE.
+Using Mock Data Source
+Entering Trade: {'entry': 49912.511460679954, 'stop_loss': 49566.81140503573, 'take_profit': 50603.9115719684, 'side': 'LONG'}
+INFO:     127.0.0.1:49824 - "GET /health HTTP/1.1" 200 OK
