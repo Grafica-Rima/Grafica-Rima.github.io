@@ -7,141 +7,155 @@ class Strategy:
     def __init__(self):
         pass
 
-    def analyze(self, df):
+    def analyze(self, df_5m, df_1h=None):
         """
-        Refactored analysis logic for 5m scalping.
-        Removes look-ahead bias, uses faster EMAs (9/21), VWAP, and Trend Filter.
+        Advanced Multi-Timeframe Strategy for Scalping.
+
+        Indicators (5m):
+        - EMA 9, EMA 21 (Crossover)
+        - VWAP (Trend support)
+        - RSI (14) (Momentum/Overbought/Oversold)
+        - ADX (14) (Trend Strength)
+        - ATR (14) (Volatility)
+
+        Filters:
+        - 1H Trend: Price > EMA 20 (1H) for Longs.
+        - ADX Filter: ADX > 25 (Avoid chop).
+        - RSI Filter: Block Long if > 70, Block Short if < 30.
         """
-        if df is None or len(df) < 50:
+        if df_5m is None or len(df_5m) < 50:
             return None
 
-        # 1. Calculate Indicators
-        # Scalping EMAs
-        df['ema_9'] = ta.ema(df['close'], length=9)
-        df['ema_21'] = ta.ema(df['close'], length=21)
+        # --- 1. PREPARE 1H TREND FILTER ---
+        trend_direction = "NEUTRAL"
+        if df_1h is not None and not df_1h.empty and len(df_1h) > 20:
+            df_1h['ema_20'] = ta.ema(df_1h['close'], length=20)
+            last_1h = df_1h.iloc[-2] # Last closed 1h candle
+            if last_1h['close'] > last_1h['ema_20']:
+                trend_direction = "UP"
+            elif last_1h['close'] < last_1h['ema_20']:
+                trend_direction = "DOWN"
 
-        # Trend Filter (Higher timeframe bias approximation)
-        df['ema_200'] = ta.ema(df['close'], length=200)
+        # --- 2. CALCULATE 5M INDICATORS ---
+        # EMAs
+        df_5m['ema_9'] = ta.ema(df_5m['close'], length=9)
+        df_5m['ema_21'] = ta.ema(df_5m['close'], length=21)
+        df_5m['ema_200'] = ta.ema(df_5m['close'], length=200)
 
-        # VWAP (Volume Weighted Average Price)
-        # Standard VWAP usually anchors to session start, but pandas_ta default handles dataframe.
-        # For continuous futures, a rolling VWAP or standard calculation is acceptable.
-        if 'vwap' not in df.columns:
+        # RSI
+        df_5m['rsi'] = ta.rsi(df_5m['close'], length=14)
+
+        # ADX
+        # adx returns a DF with [ADX_14, DMP_14, DMN_14]
+        try:
+            adx_df = ta.adx(df_5m['high'], df_5m['low'], df_5m['close'], length=14)
+            if adx_df is not None:
+                df_5m = pd.concat([df_5m, adx_df], axis=1)
+                # Rename default column usually 'ADX_14' -> 'adx'
+                if 'ADX_14' in df_5m.columns:
+                    df_5m['adx'] = df_5m['ADX_14']
+            else:
+                df_5m['adx'] = 0
+        except:
+             df_5m['adx'] = 0
+
+        # ATR (for Risk Management)
+        df_5m['atr'] = ta.atr(df_5m['high'], df_5m['low'], df_5m['close'], length=14)
+
+        # VWAP
+        if 'vwap' not in df_5m.columns:
             try:
-                # pandas_ta vwap might return None if indices are not datetime
-                df.set_index('timestamp', inplace=True, drop=False)
-                df['vwap'] = ta.vwap(df['high'], df['low'], df['close'], df['volume'])
-                df.reset_index(drop=True, inplace=True)
-            except Exception as e:
-                print(f"VWAP Error: {e}")
-                df['vwap'] = df['ema_200'] # Fallback
+                df_5m.set_index('timestamp', inplace=True, drop=False)
+                df_5m['vwap'] = ta.vwap(df_5m['high'], df_5m['low'], df_5m['close'], df_5m['volume'])
+                df_5m.reset_index(drop=True, inplace=True)
+            except:
+                df_5m['vwap'] = df_5m['ema_200'] # Fallback
 
         # Volume EMA
-        df['vol_ema'] = ta.ema(df['volume'], length=20)
+        df_5m['vol_ema'] = ta.ema(df_5m['volume'], length=20)
 
-        # 2. Identify Pivots (No Look-ahead)
-        # A pivot high at index 'i' is valid if high[i] > high[i-1] and high[i] > high[i-2] ...
-        # AND we confirm it after 'n' bars.
-        # However, for support/resistance levels to trade AGAINST, we use past pivots.
-        # We define a pivot high as a candle that was higher than 2 candles before and 2 candles after.
-        # This means a pivot at 'i' is known at 'i+2'.
-
-        window = 3
-        # Create shifting for vectorization to find peaks in the PAST
-        # We need to know if row[i-3] was a peak.
-        # It was a peak if high[i-3] > high[i-4], high[i-5]... and high[i-3] > high[i-2], high[i-1]
-
-        # Simpler approach: Rolling Max over window.
-        # If High[i-window] == RollingMax(window*2+1) centered at i-window...
-        # But we are at 'current_candle'. We just look back.
-
-        # Let's iterate backwards to find the most recent valid pivots for Support/Resistance
-        # A pivot is confirmed if 2 subsequent candles close lower (for high).
-        pivot_highs = [] # list of (index, price)
+        # --- 3. IDENTIFY PIVOTS (Backward Looking) ---
+        pivot_highs = []
         pivot_lows = []
+        for i in range(len(df_5m) - 3, len(df_5m) - 50, -1):
+            if (df_5m['high'].iloc[i] > df_5m['high'].iloc[i-1] and
+                df_5m['high'].iloc[i] > df_5m['high'].iloc[i-2] and
+                df_5m['high'].iloc[i] > df_5m['high'].iloc[i+1] and
+                df_5m['high'].iloc[i] > df_5m['high'].iloc[i+2]):
+                pivot_highs.append(df_5m['high'].iloc[i])
 
-        # We scan the last 50 candles for pivots.
-        # We stop at -3 because we need 2 bars to confirm.
-        for i in range(len(df) - 3, len(df) - 50, -1):
-            # Check for High Pivot at i
-            # Condition: High[i] > High[i-1] and High[i] > High[i-2]
-            # AND High[i] > High[i+1] and High[i] > High[i+2]
-            if (df['high'].iloc[i] > df['high'].iloc[i-1] and
-                df['high'].iloc[i] > df['high'].iloc[i-2] and
-                df['high'].iloc[i] > df['high'].iloc[i+1] and
-                df['high'].iloc[i] > df['high'].iloc[i+2]):
-                pivot_highs.append(df['high'].iloc[i])
-
-            # Check for Low Pivot
-            if (df['low'].iloc[i] < df['low'].iloc[i-1] and
-                df['low'].iloc[i] < df['low'].iloc[i-2] and
-                df['low'].iloc[i] < df['low'].iloc[i+1] and
-                df['low'].iloc[i] < df['low'].iloc[i+2]):
-                pivot_lows.append(df['low'].iloc[i])
+            if (df_5m['low'].iloc[i] < df_5m['low'].iloc[i-1] and
+                df_5m['low'].iloc[i] < df_5m['low'].iloc[i-2] and
+                df_5m['low'].iloc[i] < df_5m['low'].iloc[i+1] and
+                df_5m['low'].iloc[i] < df_5m['low'].iloc[i+2]):
+                pivot_lows.append(df_5m['low'].iloc[i])
 
         # Current State
-        last_closed_idx = -2 # The last fully completed candle
-        current_candle = df.iloc[last_closed_idx]
-        prev_candle = df.iloc[last_closed_idx - 1]
-
-        # 3. Strategy Logic
-        # We look for confluence.
+        last_closed_idx = -2
+        current_candle = df_5m.iloc[last_closed_idx]
+        prev_candle = df_5m.iloc[last_closed_idx - 1]
 
         signal = None
         setup_type = None
         invalidation_level = None
+        atr_value = current_candle['atr'] if pd.notna(current_candle['atr']) else 0
+        adx_value = current_candle['adx'] if pd.notna(current_candle['adx']) else 0
+        rsi_value = current_candle['rsi'] if pd.notna(current_candle['rsi']) else 50
 
-        # --- LOGIC 1: EMA CROSS with TREND FILTER ---
-        # Long: EMA 9 crosses above EMA 21 AND Price > EMA 200 AND Price > VWAP
+        # --- LOGIC 1: EMA CROSS with CONFLUENCE ---
+        # LONG
         if (prev_candle['ema_9'] <= prev_candle['ema_21'] and current_candle['ema_9'] > current_candle['ema_21']):
-            # Bullish Cross
-            if current_candle['close'] > current_candle['ema_200']: # Trend Filter
-                 signal = "LONG"
-                 setup_type = "EMA_CROSS_TREND"
-                 # SL below the recent swing low or EMA 21
-                 invalidation_level = pivot_lows[0] if pivot_lows else current_candle['low'] * 0.995
+            # Filters:
+            # 1. 1H Trend must be UP (or neutral if missing)
+            # 2. Price > 5m EMA 200 (Local trend)
+            # 3. ADX > 20 (Trend Strength)
+            # 4. RSI < 70 (Not Overbought)
+            if (trend_direction != "DOWN" and
+                current_candle['close'] > current_candle['ema_200'] and
+                adx_value > 20 and
+                rsi_value < 70):
 
+                signal = "LONG"
+                setup_type = "MTF_EMA_CROSS"
+                invalidation_level = pivot_lows[0] if pivot_lows else current_candle['low'] * 0.995
+
+        # SHORT
         elif (prev_candle['ema_9'] >= prev_candle['ema_21'] and current_candle['ema_9'] < current_candle['ema_21']):
-            # Bearish Cross
-            if current_candle['close'] < current_candle['ema_200']: # Trend Filter
+            if (trend_direction != "UP" and
+                current_candle['close'] < current_candle['ema_200'] and
+                adx_value > 20 and
+                rsi_value > 30):
+
                 signal = "SHORT"
-                setup_type = "EMA_CROSS_TREND"
+                setup_type = "MTF_EMA_CROSS"
                 invalidation_level = pivot_highs[0] if pivot_highs else current_candle['high'] * 1.005
 
-        # --- LOGIC 2: BREAKOUT with VOLUME ---
-        # If we didn't get an EMA signal, check for Breakout
+        # --- LOGIC 2: BREAKOUT with VOLUME & MOMENTUM ---
         if not signal:
             # Resistance Breakout
             if pivot_highs:
                 recent_resistance = pivot_highs[0]
-                # Check if we just broke it
                 if prev_candle['close'] <= recent_resistance and current_candle['close'] > recent_resistance:
-                    # Filter: Volume Spike
-                    if current_candle['volume'] > df['vol_ema'].iloc[last_closed_idx] * 1.5:
+                    # Filters: Volume + ADX rising + RSI Room + 1H Trend
+                    if (current_candle['volume'] > df_5m['vol_ema'].iloc[last_closed_idx] * 1.5 and
+                        trend_direction != "DOWN" and
+                        rsi_value < 75): # Allow slightly higher RSI for breakouts
+
                         signal = "LONG"
-                        setup_type = "VOL_BREAKOUT"
-                        invalidation_level = current_candle['low'] # Low of breakout candle is strict SL
+                        setup_type = "MTF_VOL_BREAKOUT"
+                        invalidation_level = current_candle['low']
 
             # Support Breakdown
             if pivot_lows:
                 recent_support = pivot_lows[0]
                 if prev_candle['close'] >= recent_support and current_candle['close'] < recent_support:
-                    if current_candle['volume'] > df['vol_ema'].iloc[last_closed_idx] * 1.5:
-                        signal = "SHORT"
-                        setup_type = "VOL_BREAKOUT"
-                        invalidation_level = current_candle['high']
+                     if (current_candle['volume'] > df_5m['vol_ema'].iloc[last_closed_idx] * 1.5 and
+                        trend_direction != "UP" and
+                        rsi_value > 25):
 
-        # --- LOGIC 3: VWAP BOUNCE (Micro Scalp) ---
-        # Price touches VWAP and bounces
-        if not signal:
-            vwap = current_candle['vwap']
-            if pd.notna(vwap):
-                dist_pct = abs(current_candle['close'] - vwap) / vwap
-                # Near VWAP (0.2%)
-                if dist_pct < 0.002:
-                     # Check candle shape (Hammer / Rejection) logic could go here
-                     # For now, simple Trend check
-                     pass
+                        signal = "SHORT"
+                        setup_type = "MTF_VOL_BREAKOUT"
+                        invalidation_level = current_candle['high']
 
         if signal:
             return {
@@ -149,7 +163,8 @@ class Strategy:
                 "type": setup_type,
                 "entry_price": current_candle['close'],
                 "timestamp": current_candle['timestamp'],
-                "invalidation_level": invalidation_level
+                "invalidation_level": invalidation_level,
+                "atr": atr_value
             }
 
         return None

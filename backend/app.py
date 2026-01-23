@@ -29,7 +29,7 @@ current_symbol = DEFAULT_PAIR
 async def trading_loop():
     """
     Main background loop:
-    1. Fetch Data
+    1. Fetch Data (5m and 1h)
     2. Analyze
     3. Manage State
     4. Broadcast
@@ -44,15 +44,16 @@ async def trading_loop():
 
     while running:
         try:
-            # 1. Fetch Price & Candles
+            # 1. Fetch Price & Candles (5m and 1h)
             price = await data_handler.fetch_current_price(current_symbol)
-            candles = await data_handler.fetch_candles(current_symbol)
+            candles_5m = await data_handler.fetch_candles(current_symbol, timeframe='5m')
+            candles_1h = await data_handler.fetch_candles(current_symbol, timeframe='1h')
 
             trade_info = None
 
-            if price is not None and not candles.empty:
-                # 2. Analyze Strategy
-                signal_data = strategy.analyze(candles)
+            if price is not None and not candles_5m.empty:
+                # 2. Analyze Strategy (Pass both timeframes)
+                signal_data = strategy.analyze(candles_5m, candles_1h)
 
                 # 3. Calculate Risk & Manage State
                 trade_params = None

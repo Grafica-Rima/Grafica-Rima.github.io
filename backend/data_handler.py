@@ -16,7 +16,7 @@ class DataHandler:
             }
         })
         self.symbol = None
-        self.timeframe = DEFAULT_TIMEFRAME
+        self.default_timeframe = DEFAULT_TIMEFRAME
         self.mock_mode = False
         self.mock_price = 50000.0
         self.mock_data = []
@@ -36,20 +36,26 @@ class DataHandler:
     async def close(self):
         await self.exchange.close()
 
-    async def fetch_candles(self, symbol, limit=1000):
+    async def fetch_candles(self, symbol, timeframe=None, limit=1000):
+        """
+        Fetches OHLCV data.
+        timeframe: Defaults to DEFAULT_TIMEFRAME (5m) if None.
+        """
+        tf = timeframe if timeframe else self.default_timeframe
+
         if not self.exchange.markets and not self.mock_mode:
             await self.initialize()
 
         if self.mock_mode:
-            return self._generate_mock_candles(limit)
+            return self._generate_mock_candles(limit, tf)
 
         try:
-            ohlcv = await self.exchange.fetch_ohlcv(symbol, self.timeframe, limit=limit)
+            ohlcv = await self.exchange.fetch_ohlcv(symbol, tf, limit=limit)
             df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             return df
         except Exception as e:
-            print(f"Error fetching candles: {e}")
+            print(f"Error fetching candles ({tf}): {e}")
             return pd.DataFrame()
 
     async def fetch_current_price(self, symbol):
@@ -87,25 +93,35 @@ class DataHandler:
             return clean_symbol
         return None
 
-    def _generate_mock_candles(self, limit):
+    def _generate_mock_candles(self, limit, timeframe):
         # Generate synthetic OHLCV data for testing
+        # Adjust interval based on timeframe string (basic parsing)
+        minutes = 5
+        if 'h' in timeframe:
+            minutes = int(timeframe.replace('h', '')) * 60
+        elif 'm' in timeframe:
+            minutes = int(timeframe.replace('m', ''))
+
         end_time = datetime.now()
-        start_time = end_time - timedelta(minutes=5*limit)
+        start_time = end_time - timedelta(minutes=minutes*limit)
 
         timestamps = []
         current = start_time
         for _ in range(limit):
             timestamps.append(current)
-            current += timedelta(minutes=5)
+            current += timedelta(minutes=minutes)
 
         # Random walk price generation
         price = 50000.0
         data = []
         for ts in timestamps:
             open_p = price
-            close_p = price + random.uniform(-100, 100)
-            high_p = max(open_p, close_p) + random.uniform(0, 50)
-            low_p = min(open_p, close_p) - random.uniform(0, 50)
+            # More volatility for higher timeframes
+            volatility = 100 if minutes <= 15 else 300
+
+            close_p = price + random.uniform(-volatility, volatility)
+            high_p = max(open_p, close_p) + random.uniform(0, volatility/2)
+            low_p = min(open_p, close_p) - random.uniform(0, volatility/2)
             volume = random.uniform(100, 1000)
             data.append([ts, open_p, high_p, low_p, close_p, volume])
             price = close_p
