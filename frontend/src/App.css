@@ -141,6 +141,17 @@ body {
   font-weight: 700;
 }
 
+.trade-row .small-text {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
+  max-width: 150px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .waiting-text {
   text-align: center;
   color: var(--text-muted);

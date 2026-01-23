@@ -6,49 +6,43 @@ class RiskManager:
     def calculate_trade_params(self, signal_data):
         """
         Calculates fixed Entry, Stop Loss, and Take Profit.
-
-        Strategy:
-        - LONG:
-          - SL: Slightly below recent support or low of the signal candle.
-          - TP: 1.5x to 2x distance to SL (Risk:Reward ratio).
-        - SHORT:
-          - SL: Slightly above recent resistance or high of the signal candle.
-          - TP: 1.5x to 2x distance to SL.
+        Uses strict Risk:Reward.
         """
         signal = signal_data['signal']
-        entry = signal_data['entry_price']
+        entry = float(signal_data['entry_price'])
+        invalidation = float(signal_data.get('invalidation_level', 0.0))
 
-        # Risk Management Settings
-        risk_reward_ratio = 2.0
+        # Default Risk Settings
+        min_risk_reward = 2.0
+        min_stop_distance_pct = 0.002 # 0.2% minimum stop width to avoid noise
 
         if signal == "LONG":
-            # If we have a support level from the strategy, use it. Otherwise use 1% default.
-            support = signal_data.get('support_level', entry * 0.99)
+            stop_loss = invalidation
 
-            # Ensure SL is not too close (min 0.2%)
-            if (entry - support) / entry < 0.002:
-                support = entry * 0.995
+            # Sanity Check: If SL is above entry (impossible for LONG) or too close
+            if stop_loss >= entry or (entry - stop_loss) / entry < min_stop_distance_pct:
+                stop_loss = entry * (1 - min_stop_distance_pct)
 
-            stop_loss = support
             risk = entry - stop_loss
-            take_profit = entry + (risk * risk_reward_ratio)
+            take_profit = entry + (risk * min_risk_reward)
 
         elif signal == "SHORT":
-            resistance = signal_data.get('resistance_level', entry * 1.01)
+            stop_loss = invalidation
 
-            if (resistance - entry) / entry < 0.002:
-                resistance = entry * 1.005
+            # Sanity Check
+            if stop_loss <= entry or (stop_loss - entry) / entry < min_stop_distance_pct:
+                stop_loss = entry * (1 + min_stop_distance_pct)
 
-            stop_loss = resistance
             risk = stop_loss - entry
-            take_profit = entry - (risk * risk_reward_ratio)
+            take_profit = entry - (risk * min_risk_reward)
 
         else:
             return None
 
         return {
-            "entry": float(entry),
-            "stop_loss": float(stop_loss),
-            "take_profit": float(take_profit),
-            "side": signal
+            "entry": entry,
+            "stop_loss": stop_loss,
+            "take_profit": take_profit,
+            "side": signal,
+            "setup_type": signal_data.get('type', 'Unknown')
         }

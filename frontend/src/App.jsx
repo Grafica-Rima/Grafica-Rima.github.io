@@ -92,6 +92,10 @@ function App() {
                   <span className="bold">{tradeData.side}</span>
                 </div>
                 <div className="trade-row">
+                  <span>SETUP:</span>
+                  <span className="small-text">{tradeData.setup_type}</span>
+                </div>
+                <div className="trade-row">
                   <span>ENTRY:</span>
                   <span>{tradeData.entry.toFixed(2)}</span>
                 </div>
