@@ -10,48 +10,32 @@ class Strategy:
     def analyze(self, df_5m, df_1h=None):
         """
         Advanced Multi-Timeframe Strategy for Scalping.
-
-        Indicators (5m):
-        - EMA 9, EMA 21 (Crossover)
-        - VWAP (Trend support)
-        - RSI (14) (Momentum/Overbought/Oversold)
-        - ADX (14) (Trend Strength)
-        - ATR (14) (Volatility)
-
-        Filters:
-        - 1H Trend: Price > EMA 20 (1H) for Longs.
-        - ADX Filter: ADX > 25 (Avoid chop).
-        - RSI Filter: Block Long if > 70, Block Short if < 30.
+        Tuned for Crypto Volatility (ADX > 25, RSI relaxed, Dead Market Filter).
         """
         if df_5m is None or len(df_5m) < 50:
             return None
 
         # --- 1. PREPARE 1H TREND FILTER ---
+        # Crypto: Use EMA 50 on 1H (Structure/Trend)
         trend_direction = "NEUTRAL"
-        if df_1h is not None and not df_1h.empty and len(df_1h) > 20:
-            df_1h['ema_20'] = ta.ema(df_1h['close'], length=20)
+        if df_1h is not None and not df_1h.empty and len(df_1h) > 50:
+            df_1h['ema_50'] = ta.ema(df_1h['close'], length=50)
             last_1h = df_1h.iloc[-2] # Last closed 1h candle
-            if last_1h['close'] > last_1h['ema_20']:
+            if last_1h['close'] > last_1h['ema_50']:
                 trend_direction = "UP"
-            elif last_1h['close'] < last_1h['ema_20']:
+            elif last_1h['close'] < last_1h['ema_50']:
                 trend_direction = "DOWN"
 
         # --- 2. CALCULATE 5M INDICATORS ---
-        # EMAs
         df_5m['ema_9'] = ta.ema(df_5m['close'], length=9)
         df_5m['ema_21'] = ta.ema(df_5m['close'], length=21)
         df_5m['ema_200'] = ta.ema(df_5m['close'], length=200)
-
-        # RSI
         df_5m['rsi'] = ta.rsi(df_5m['close'], length=14)
 
-        # ADX
-        # adx returns a DF with [ADX_14, DMP_14, DMN_14]
         try:
             adx_df = ta.adx(df_5m['high'], df_5m['low'], df_5m['close'], length=14)
             if adx_df is not None:
                 df_5m = pd.concat([df_5m, adx_df], axis=1)
-                # Rename default column usually 'ADX_14' -> 'adx'
                 if 'ADX_14' in df_5m.columns:
                     df_5m['adx'] = df_5m['ADX_14']
             else:
@@ -59,19 +43,16 @@ class Strategy:
         except:
              df_5m['adx'] = 0
 
-        # ATR (for Risk Management)
         df_5m['atr'] = ta.atr(df_5m['high'], df_5m['low'], df_5m['close'], length=14)
 
-        # VWAP
         if 'vwap' not in df_5m.columns:
             try:
                 df_5m.set_index('timestamp', inplace=True, drop=False)
                 df_5m['vwap'] = ta.vwap(df_5m['high'], df_5m['low'], df_5m['close'], df_5m['volume'])
                 df_5m.reset_index(drop=True, inplace=True)
             except:
-                df_5m['vwap'] = df_5m['ema_200'] # Fallback
+                df_5m['vwap'] = df_5m['ema_200']
 
-        # Volume EMA
         df_5m['vol_ema'] = ta.ema(df_5m['volume'], length=20)
 
         # --- 3. IDENTIFY PIVOTS (Backward Looking) ---
@@ -102,18 +83,23 @@ class Strategy:
         adx_value = current_candle['adx'] if pd.notna(current_candle['adx']) else 0
         rsi_value = current_candle['rsi'] if pd.notna(current_candle['rsi']) else 50
 
+        # --- FILTER: DEAD MARKET (Low Volatility) ---
+        # If ATR / Price < 0.05% (0.0005), avoid. Spread/Fees > Profit.
+        if atr_value / current_candle['close'] < 0.0005:
+            return None
+
         # --- LOGIC 1: EMA CROSS with CONFLUENCE ---
         # LONG
         if (prev_candle['ema_9'] <= prev_candle['ema_21'] and current_candle['ema_9'] > current_candle['ema_21']):
             # Filters:
-            # 1. 1H Trend must be UP (or neutral if missing)
-            # 2. Price > 5m EMA 200 (Local trend)
-            # 3. ADX > 20 (Trend Strength)
-            # 4. RSI < 70 (Not Overbought)
+            # 1. 1H Trend UP (EMA 50)
+            # 2. 5m Trend > EMA 200
+            # 3. ADX > 25 (Crypto adjustment)
+            # 4. RSI < 75 (Crypto adjustment - more room)
             if (trend_direction != "DOWN" and
                 current_candle['close'] > current_candle['ema_200'] and
-                adx_value > 20 and
-                rsi_value < 70):
+                adx_value > 25 and
+                rsi_value < 75):
 
                 signal = "LONG"
                 setup_type = "MTF_EMA_CROSS"
@@ -121,10 +107,11 @@ class Strategy:
 
         # SHORT
         elif (prev_candle['ema_9'] >= prev_candle['ema_21'] and current_candle['ema_9'] < current_candle['ema_21']):
+            # RSI Block < 25
             if (trend_direction != "UP" and
                 current_candle['close'] < current_candle['ema_200'] and
-                adx_value > 20 and
-                rsi_value > 30):
+                adx_value > 25 and
+                rsi_value > 25):
 
                 signal = "SHORT"
                 setup_type = "MTF_EMA_CROSS"
@@ -136,10 +123,10 @@ class Strategy:
             if pivot_highs:
                 recent_resistance = pivot_highs[0]
                 if prev_candle['close'] <= recent_resistance and current_candle['close'] > recent_resistance:
-                    # Filters: Volume + ADX rising + RSI Room + 1H Trend
+                    # Filters
                     if (current_candle['volume'] > df_5m['vol_ema'].iloc[last_closed_idx] * 1.5 and
                         trend_direction != "DOWN" and
-                        rsi_value < 75): # Allow slightly higher RSI for breakouts
+                        rsi_value < 80): # Breakouts can go higher on RSI
 
                         signal = "LONG"
                         setup_type = "MTF_VOL_BREAKOUT"
@@ -151,7 +138,7 @@ class Strategy:
                 if prev_candle['close'] >= recent_support and current_candle['close'] < recent_support:
                      if (current_candle['volume'] > df_5m['vol_ema'].iloc[last_closed_idx] * 1.5 and
                         trend_direction != "UP" and
-                        rsi_value > 25):
+                        rsi_value > 20):
 
                         signal = "SHORT"
                         setup_type = "MTF_VOL_BREAKOUT"

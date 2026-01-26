@@ -2,25 +2,35 @@
 class StateManager:
     def __init__(self):
         self.current_trade = None # { status: "OPEN" | "WAITING", data: { ... } }
+        self.last_trade_candle_timestamp = None
         self.reset_state()
 
     def reset_state(self):
+        # Preserve last_trade_candle_timestamp across resets
         self.current_trade = {
             "status": "WAITING",
             "data": None
         }
 
-    def process_signal(self, trade_params, current_price):
+    def process_signal(self, trade_params, current_price, current_signal_timestamp=None):
         """
         Manages state transitions.
         CRITICAL: If a trade is OPEN, do NOT change Entry/SL/TP.
+        PREVENTS RE-ENTRY: Does not take a trade if the signal comes from the same candle as the last trade.
         """
         if self.current_trade['status'] == "WAITING":
             if trade_params:
+                # Check Re-entry prevention
+                if current_signal_timestamp is not None:
+                    if self.last_trade_candle_timestamp == current_signal_timestamp:
+                        # We already traded this candle. Ignore.
+                        return self.current_trade
+
                 # Enter new trade
                 print(f"Entering Trade: {trade_params}")
                 self.current_trade['status'] = "OPEN"
                 self.current_trade['data'] = trade_params
+                self.last_trade_candle_timestamp = current_signal_timestamp
                 return self.current_trade
 
         elif self.current_trade['status'] == "OPEN":

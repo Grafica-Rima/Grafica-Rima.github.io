@@ -57,10 +57,12 @@ async def trading_loop():
 
                 # 3. Calculate Risk & Manage State
                 trade_params = None
+                signal_timestamp = None
                 if signal_data:
                     trade_params = risk_manager.calculate_trade_params(signal_data)
+                    signal_timestamp = signal_data['timestamp']
 
-                state_result = state_manager.process_signal(trade_params, price)
+                state_result = state_manager.process_signal(trade_params, price, signal_timestamp)
 
                 # Prepare payload
                 payload = {
