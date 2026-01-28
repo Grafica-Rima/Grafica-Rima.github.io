@@ -13,7 +13,7 @@ class Config:
     # App Settings
     # If True, generates random data instead of connecting to Binance
     # Set to True by default to avoid API errors in sandbox unless user provides keys
-    MOCK_MODE = True
+    MOCK_MODE = False
 
     # Strategy Parameters
     RSI_PERIOD = 14

@@ -11,46 +11,73 @@ class DataHandler:
         self._initialize_exchange()
 
     def _initialize_exchange(self):
-        if not self.mock_mode:
-            try:
-                self.exchange = ccxt.binance({
-                    'apiKey': Config.BINANCE_API_KEY,
-                    'secret': Config.BINANCE_API_SECRET,
-                    'enableRateLimit': True,
-                    'options': {
-                        'defaultType': 'future'
-                    }
-                })
-                # Check connectivity (optional, but good for fail-fast)
-                # self.exchange.load_markets()
-            except Exception as e:
-                print(f"Error initializing exchange: {e}")
-                print("Switching to MOCK MODE.")
-                self.mock_mode = True
+        if self.mock_mode:
+            return
+
+        # Try Binance Global first
+        try:
+            print("Attempting to connect to Binance (Global)...")
+            self.exchange = ccxt.binance({
+                'apiKey': Config.BINANCE_API_KEY,
+                'secret': Config.BINANCE_API_SECRET,
+                'enableRateLimit': True,
+                'options': {'defaultType': 'future'}
+            })
+            # Test connection (lightweight)
+            # Some restricted regions fail on load_markets or fetch_ohlcv
+            # We'll rely on lazy failure or explicit check if keys provided
+        except Exception as e:
+            print(f"Binance Global Init Failed: {e}")
+
+        # If fetch fails later, or if we want to support US fallback immediately:
+        # We can't easily "test" it without a request.
+        # But we can try to fetch a ticker or something to validate.
+
+        # Let's add a robust fetcher that handles the fallback dynamically.
 
     def fetch_ohlcv(self, symbol=Config.DEFAULT_PAIR, timeframe=Config.TIMEFRAME, limit=Config.LIMIT):
         """
         Fetches OHLCV data.
-        Note: This uses synchronous CCXT. In a high-perf async app, consider ccxt.async_support.
         """
         if self.mock_mode:
             return self._generate_mock_data(limit)
 
         try:
-            # Standardizing symbol for Binance Futures if needed
-            # But usually pair search like "BTC/USDT" works.
-            # If user types 'btcusdt.p', we might need to clean it up in the App level or here.
-            # For now, assume correct format is passed or handled.
+            # Ensure exchange is initialized
+            if not self.exchange:
+                 self._initialize_exchange()
 
+            # Attempt Fetch
             ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            return df
+            return self._process_ohlcv(ohlcv)
 
         except Exception as e:
-            print(f"Error fetching data for {symbol}: {e}")
-            # If fetch fails (e.g. 451 error), fallback to mock or empty
+            print(f"Error fetching from Primary Exchange: {e}")
+
+            # Check if it's a restriction error (451) or similar
+            if "451" in str(e) or "Service unavailable" in str(e) or "ExchangeNotAvailable" in str(e):
+                print("Switching to Binance US fallback due to restriction...")
+                try:
+                    # Fallback to Binance US
+                    # Note: Binance US doesn't support 'future' usually, only spot.
+                    # But for price data, spot is often close enough for a prototype if futures are blocked.
+                    # Or we check if they have it. BinanceUS is spot only mostly.
+                    self.exchange = ccxt.binanceus({
+                        'enableRateLimit': True
+                    })
+                    ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+                    return self._process_ohlcv(ohlcv)
+                except Exception as e2:
+                    print(f"Binance US Fallback Failed: {e2}")
+
+            # Final Fallback to Mock
+            print("All exchanges failed. Returning MOCK data.")
             return self._generate_mock_data(limit)
+
+    def _process_ohlcv(self, ohlcv):
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        return df
 
     def _generate_mock_data(self, limit):
         # Generate a random walk
