@@ -1,0 +1,204 @@
+//@version=5
+strategy("Institutional 5m Crypto Strategy [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+
+// ==========================================
+// 1. INPUTS & CONFIGURATION
+// ==========================================
+grp_ind = "Indicators"
+len_ema_fast = input.int(50, "Fast EMA Length", group=grp_ind)
+len_ema_slow = input.int(200, "Slow EMA Length", group=grp_ind)
+len_vol = input.int(20, "Volume SMA Length", group=grp_ind)
+
+grp_piv = "Pivots / Market Structure"
+left_bars = input.int(5, "Pivot Left Bars", group=grp_piv)
+right_bars = input.int(5, "Pivot Right Bars", group=grp_piv)
+
+grp_risk = "Risk Management"
+rr_ratio = input.float(2.0, "Risk:Reward Ratio", step=0.1, group=grp_risk)
+use_fib_tp = input.bool(true, "Use Fib 1.618 as TP target?", group=grp_risk)
+
+// ==========================================
+// 2. INDICATORS
+// ==========================================
+// Moving Averages
+ema_fast = ta.ema(close, len_ema_fast)
+ema_slow = ta.ema(close, len_ema_slow)
+
+// Volume
+vol_sma = ta.sma(volume, len_vol)
+vol_spike = volume > vol_sma * 1.2  // Volume must be 20% higher than average
+
+// Pivots for Market Structure
+ph = ta.pivothigh(high, left_bars, right_bars)
+pl = ta.pivotlow(low, left_bars, right_bars)
+
+// Variable persistence for Market Structure
+var float last_ph = na
+var float last_pl = na
+var float prev_ph = na
+var float prev_pl = na
+
+if not na(ph)
+    prev_ph := last_ph
+    last_ph := ph
+if not na(pl)
+    prev_pl := last_pl
+    last_pl := pl
+
+// ==========================================
+// 3. PATTERN RECOGNITION (Institutional)
+// ==========================================
+
+// --- Quasimodo (QM) Pattern ---
+// Bearish QM: High (prev_ph) -> Low (prev_pl) -> Higher High (last_ph) -> Break of Low
+// Bullish QM: Low (prev_pl) -> High (prev_ph) -> Lower Low (last_pl) -> Break of High
+
+// We don't just check booleans, we look for the breakout event below in Signal Generation.
+
+// --- Fibonacci Retracement Logic ---
+// We track the Fib 0.618 level of the most recent Swing.
+// For LONG: Measure form Last Low to Last High.
+// Entry Zone = High - (High - Low) * 0.618
+var float fib_entry_long = na
+var float fib_entry_short = na
+
+// Calculate Fib levels when we have a confirmed range
+// Valid Up Swing: last_ph follows last_pl
+if not na(ph) and not na(last_pl)
+    float swing_range = ph - last_pl
+    if swing_range > 0
+        fib_entry_long := ph - (swing_range * 0.618)
+
+// Valid Down Swing: last_pl follows last_ph
+if not na(pl) and not na(last_ph)
+    float swing_range = last_ph - pl
+    if swing_range > 0
+        fib_entry_short := pl + (swing_range * 0.618)
+
+// ==========================================
+// 4. SIGNAL GENERATION
+// ==========================================
+
+// Global Trend Filter
+trend_bullish = close > ema_slow
+trend_bearish = close < ema_slow
+
+// --- Long Signal Conditions ---
+// 1. Bullish QM Breakout: Structure was LL, but now we break above the intervening High.
+// 2. Fib Retracement: Price touches 0.618 area.
+
+// Detect Break of Structure (BOS) - Breakout Strategy
+long_bos = not na(last_ph) and ta.crossover(close, last_ph)
+short_bos = not na(last_pl) and ta.crossunder(close, last_pl)
+
+// Detect Fib Touch (Bounce Strategy)
+// We check if Low touched the level and Close is above it (Rejection/Bounce)
+long_fib_bounce = not na(fib_entry_long) and low <= fib_entry_long and close > fib_entry_long
+short_fib_bounce = not na(fib_entry_short) and high >= fib_entry_short and close < fib_entry_short
+
+// Combined Entry Triggers
+valid_long_bos = trend_bullish and long_bos and vol_spike
+valid_short_bos = trend_bearish and short_bos and vol_spike
+
+valid_long_fib = trend_bullish and long_fib_bounce and vol_spike
+valid_short_fib = trend_bearish and short_fib_bounce and vol_spike
+
+// ==========================================
+// 5. EXECUTION & RISK MANAGEMENT
+// ==========================================
+
+// Variables to store fixed SL/TP for the current trade
+var float trade_sl = na
+var float trade_tp = na
+
+// --- ENTRY LOGIC ---
+if strategy.position_size == 0
+    // LONG
+    if valid_long_bos or valid_long_fib
+        // Determine SL/TP based on type
+        float sl = na
+        float risk = na
+
+        if valid_long_fib
+            // For Fib entry, SL is below the swing low
+            sl := not na(last_pl) ? last_pl : low * 0.99
+            strategy.entry("Long Fib", strategy.long, comment="L-Fib 0.618")
+            // Immediate Exit Order for Protection
+            // We set risk vars first
+            trade_sl := sl
+            float entry_price = close
+            risk := entry_price - trade_sl
+             if risk <= 0
+                risk := entry_price * 0.01
+                trade_sl := entry_price - risk
+            trade_tp := use_fib_tp ? entry_price + (risk * 1.618) : entry_price + (risk * rr_ratio)
+            strategy.exit("Exit Long Fib", "Long Fib", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+        else
+            // For BOS entry
+            sl := not na(last_pl) ? last_pl : low * 0.99
+            strategy.entry("Long BOS", strategy.long, comment="L-BOS Break")
+
+            trade_sl := sl
+            float entry_price = close
+            risk := entry_price - trade_sl
+            if risk <= 0
+                risk := entry_price * 0.01
+                trade_sl := entry_price - risk
+            trade_tp := use_fib_tp ? entry_price + (risk * 1.618) : entry_price + (risk * rr_ratio)
+            strategy.exit("Exit Long BOS", "Long BOS", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+
+    // SHORT
+    if valid_short_bos or valid_short_fib
+        float sl = na
+        float risk = na
+
+        if valid_short_fib
+            sl := not na(last_ph) ? last_ph : high * 1.01
+            strategy.entry("Short Fib", strategy.short, comment="S-Fib 0.618")
+
+            trade_sl := sl
+            float entry_price = close
+            risk := trade_sl - entry_price
+            if risk <= 0
+                risk := entry_price * 0.01
+                trade_sl := entry_price + risk
+            trade_tp := use_fib_tp ? entry_price - (risk * 1.618) : entry_price - (risk * rr_ratio)
+            strategy.exit("Exit Short Fib", "Short Fib", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+        else
+            sl := not na(last_ph) ? last_ph : high * 1.01
+            strategy.entry("Short BOS", strategy.short, comment="S-BOS Break")
+
+            trade_sl := sl
+            float entry_price = close
+            risk := trade_sl - entry_price
+            if risk <= 0
+                risk := entry_price * 0.01
+                trade_sl := entry_price + risk
+            trade_tp := use_fib_tp ? entry_price - (risk * 1.618) : entry_price - (risk * rr_ratio)
+            strategy.exit("Exit Short BOS", "Short BOS", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+// --- EXIT LOGIC (PERSISTENCE) ---
+// This ensures that if the trade is open (position > 0) in subsequent bars, the exit orders are re-submitted
+// matching the fixed SL/TP.
+if strategy.position_size > 0
+    strategy.exit("Exit Long Fib", "Long Fib", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+    strategy.exit("Exit Long BOS", "Long BOS", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+if strategy.position_size < 0
+    strategy.exit("Exit Short Fib", "Short Fib", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+    strategy.exit("Exit Short BOS", "Short BOS", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+// ==========================================
+// 6. VISUALIZATION
+// ==========================================
+plot(ema_fast, "EMA 50", color=color.yellow)
+plot(ema_slow, "EMA 200", color=color.blue, linewidth=2)
+
+// Plot Pivots
+plotshape(ph, style=shape.triangledown, location=location.abovebar, color=color.red, offset=-right_bars, title="Pivot High")
+plotshape(pl, style=shape.triangleup, location=location.belowbar, color=color.green, offset=-right_bars, title="Pivot Low")
+
+// Plot Fib Levels (Visual Debugging)
+plot(fib_entry_long, "Long Fib Entry", color=color.new(color.green, 50), style=plot.style_circles)
+plot(fib_entry_short, "Short Fib Entry", color=color.new(color.red, 50), style=plot.style_circles)
