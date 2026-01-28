@@ -1,87 +1,76 @@
 //@version=5
-strategy("Institutional 5m Crypto Strategy v5 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=20)
+strategy("Institutional 5m Crypto Strategy v6 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=20)
 
 // ==========================================
 // 1. INPUTS & CONFIGURATION
 // ==========================================
-grp_ind = "Indicators"
-len_ema_trend = input.int(200, "Trend EMA Length", group=grp_ind)
-len_ema_pullback = input.int(50, "Pullback EMA Length", group=grp_ind)
+grp_main = "Strategy Settings"
+use_htf   = input.bool(true, "Use 15m Trend Filter?", group=grp_main, tooltip="Only trade if 15m trend aligns with 5m signal.")
+htf_res   = input.timeframe("15", "HTF Resolution", group=grp_main)
+len_adx   = input.int(14, "ADX Length", group=grp_main)
+th_adx    = input.int(20, "ADX Threshold (Min Trend)", group=grp_main)
 
-grp_filt = "Entry Filters"
-use_vol = input.bool(true, "Use Volume Spike?", group=grp_filt)
-vol_mult = input.float(1.1, "Vol Multiplier (Relaxed)", group=grp_filt)
-use_rsi = input.bool(true, "Use RSI Filter?", group=grp_filt)
+grp_ind   = "Indicators"
+len_ema   = input.int(200, "Trend EMA (5m)", group=grp_ind)
+len_stoch = input.int(14, "Stoch RSI Length", group=grp_ind)
+smooth_k  = input.int(3, "Stoch K", group=grp_ind)
+smooth_d  = input.int(3, "Stoch D", group=grp_ind)
 
-grp_sess = "Time / Session Filter"
-use_session = input.bool(false, "Trade Only Specific Session?", group=grp_sess, tooltip="Crypto trades 24/7. Enable to filter for London/NY volatility.")
-session_time = input.session("0800-1600", "Session Time (UTC)", group=grp_sess)
-
-grp_piv = "Market Structure (Pivots)"
-left_bars = input.int(3, "Pivot Left Bars (Fast)", group=grp_piv)
-right_bars = input.int(3, "Pivot Right Bars (Fast)", group=grp_piv)
-
-grp_risk = "Risk Management"
-rr_ratio = input.float(1.5, "Risk:Reward Ratio", step=0.1, group=grp_risk)
-max_sl_percent = input.float(1.5, "Max Stop Loss %", step=0.1, group=grp_risk, tooltip="Hard cap on SL distance to prevent large losses")
-use_be = input.bool(true, "Move to Breakeven?", group=grp_risk)
-be_trigger = input.float(0.8, "Trigger BE at R:R", step=0.1)
+grp_risk  = "Risk Management"
+rr_ratio  = input.float(1.5, "Risk:Reward Ratio", step=0.1, group=grp_risk)
+atr_mult  = input.float(2.0, "SL Multiplier (ATR)", step=0.1, group=grp_risk)
+use_be    = input.bool(true, "Move to Breakeven?", group=grp_risk)
+be_trig   = input.float(1.0, "Breakeven Trigger (R)", step=0.1)
 
 // ==========================================
-// 2. INDICATORS
+// 2. INDICATORS & HTF LOGIC
 // ==========================================
-// EMAs
-ema_trend = ta.ema(close, len_ema_trend)      // 200 EMA
-ema_pullback = ta.ema(close, len_ema_pullback) // 50 EMA
 
-// Trend Direction (Simplified)
-// Bullish: Price > 200 EMA
-// Bearish: Price < 200 EMA
-is_uptrend = close > ema_trend
-is_downtrend = close < ema_trend
+// --- 5m Indicators ---
+ema_5m = ta.ema(close, len_ema)
+atr_5m = ta.atr(14)
 
-// Volume Spike
-vol_sma = ta.sma(volume, 20)
-vol_ok = use_vol ? (volume > vol_sma * vol_mult) : true
+// ADX (Trend Strength)
+[di_plus, di_minus, adx] = ta.dmi(len_adx, len_adx)
+is_trending = adx > th_adx
 
-// RSI (Relaxed)
-rsi = ta.rsi(close, 14)
-rsi_long_ok = use_rsi ? (rsi > 30 and rsi < 70) : true
-rsi_short_ok = use_rsi ? (rsi < 70 and rsi > 30) : true
+// Stochastic RSI (Momentum/Trigger)
+rsi1 = ta.rsi(close, len_stoch)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, len_stoch), smooth_k)
+d = ta.sma(k, smooth_d)
 
-// Time Filter
-in_session = use_session ? not na(time(timeframe.period, session_time)) : true
+// --- HTF Logic (Request 15m Data) ---
+// We check if 15m Close is above 15m EMA 50 (General Trend)
+htf_ema_len = 50
+htf_ema = ta.ema(close, htf_ema_len) // Calculated on HTF
+htf_close = close
 
-// Pivots
-ph = ta.pivothigh(high, left_bars, right_bars)
-pl = ta.pivotlow(low, left_bars, right_bars)
+// Get HTF values
+// We use lookahead_off to prevent repainting. This ensures we only see the state of the 15m bar
+// that has already closed or the current developing state, without peeking into the future.
+[h_close, h_ema] = request.security(syminfo.tickerid, htf_res, [close, ta.ema(close, htf_ema_len)], lookahead=barmerge.lookahead_off)
 
-var float last_ph = na
-var float last_pl = na
-
-if not na(ph)
-    last_ph := ph
-if not na(pl)
-    last_pl := pl
+htf_bullish = use_htf ? (h_close > h_ema) : true
+htf_bearish = use_htf ? (h_close < h_ema) : true
 
 // ==========================================
 // 3. SIGNAL GENERATION
 // ==========================================
 
-// --- Entry Type 1: Break of Structure (BOS) ---
-bos_long = is_uptrend and not na(last_ph) and ta.crossover(close, last_ph)
-bos_short = is_downtrend and not na(last_pl) and ta.crossunder(close, last_pl)
+// --- Setup: Trend Alignment ---
+// Long Setup: 5m Price > 5m EMA 200 AND 15m Price > 15m EMA 50 AND ADX > 20
+setup_long = close > ema_5m and htf_bullish and is_trending
+// Short Setup: 5m Price < 5m EMA 200 AND 15m Price < 15m EMA 50 AND ADX > 20
+setup_short = close < ema_5m and htf_bearish and is_trending
 
-// --- Entry Type 2: EMA Pullback (Bounce) ---
-// Price dips into EMA 50 area and closes bullishly
-// Long: Low touched EMA 50, but Close > Open (Green Candle)
-pullback_long = is_uptrend and low <= ema_pullback and close > open and close > ema_pullback
-// Short: High touched EMA 50, but Close < Open (Red Candle)
-pullback_short = is_downtrend and high >= ema_pullback and close < open and close < ema_pullback
+// --- Trigger: Stoch RSI Cross (Pullback Entry) ---
+// We look for Oversold Crossovers in Uptrend, Overbought Crossunders in Downtrend
+// This catches the "Dip" rather than the "Top"
+trigger_long = ta.crossover(k, d) and k < 30
+trigger_short = ta.crossunder(k, d) and k > 70
 
-// Combined Signals
-valid_long = (bos_long or pullback_long) and vol_ok and rsi_long_ok and in_session
-valid_short = (bos_short or pullback_short) and vol_ok and rsi_short_ok and in_session
+valid_long = setup_long and trigger_long
+valid_short = setup_short and trigger_short
 
 // ==========================================
 // 4. EXECUTION & RISK MANAGEMENT
@@ -94,73 +83,60 @@ var bool trade_be_moved = false
 // --- ENTRY ---
 if strategy.position_size == 0
     if valid_long
-        // SL Logic: Recent Swing Low OR Low of Entry Candle
-        float swing_low = ta.lowest(low, right_bars + 1)
-        float structural_sl = math.min(swing_low, low)
-
-        // Cap SL at Max %
-        float max_sl_price = close * (1 - max_sl_percent / 100)
-        trade_sl := math.max(structural_sl, max_sl_price)
-
+        // ATR Based SL
+        float vol_sl = atr_5m * atr_mult
+        trade_sl := close - vol_sl
         trade_entry := close
+
+        // Calculate Risk
         float risk = trade_entry - trade_sl
-
-        // Min risk check
-        if risk < close * 0.001
-            risk := close * 0.001
-            trade_sl := close - risk
-
         trade_tp := trade_entry + (risk * rr_ratio)
         trade_be_moved := false
 
-        strategy.entry("Long", strategy.long, comment=bos_long ? "L-BOS" : "L-Pullback")
+        strategy.entry("Long", strategy.long, comment="L-Pullback")
         strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp)
 
     if valid_short
-        float swing_high = ta.highest(high, right_bars + 1)
-        float structural_sl = math.max(swing_high, high)
-
-        float max_sl_price = close * (1 + max_sl_percent / 100)
-        trade_sl := math.min(structural_sl, max_sl_price)
-
+        float vol_sl = atr_5m * atr_mult
+        trade_sl := close + vol_sl
         trade_entry := close
+
         float risk = trade_sl - trade_entry
-
-        if risk < close * 0.001
-            risk := close * 0.001
-            trade_sl := close + risk
-
         trade_tp := trade_entry - (risk * rr_ratio)
         trade_be_moved := false
 
-        strategy.entry("Short", strategy.short, comment=bos_short ? "S-BOS" : "S-Pullback")
+        strategy.entry("Short", strategy.short, comment="S-Pullback")
         strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp)
 
 // --- MANAGEMENT (Breakeven) ---
-if strategy.position_size > 0 and use_be and not trade_be_moved
-    float risk = trade_entry - trade_sl
-    if high >= trade_entry + (risk * be_trigger)
-        trade_sl := trade_entry * 1.0005
-        trade_be_moved := true
-        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
-else if strategy.position_size > 0
-    strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+if strategy.position_size > 0
+    if use_be and not trade_be_moved
+        float risk = trade_entry - trade_sl
+        if high >= trade_entry + (risk * be_trig)
+            trade_sl := trade_entry * 1.0005
+            trade_be_moved := true
+            strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+    else
+        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
 
-if strategy.position_size < 0 and use_be and not trade_be_moved
-    float risk = trade_sl - trade_entry
-    if low <= trade_entry - (risk * be_trigger)
-        trade_sl := trade_entry * 0.9995
-        trade_be_moved := true
-        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
-else if strategy.position_size < 0
-    strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+if strategy.position_size < 0
+    if use_be and not trade_be_moved
+        float risk = trade_sl - trade_entry
+        if low <= trade_entry - (risk * be_trig)
+            trade_sl := trade_entry * 0.9995
+            trade_be_moved := true
+            strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+    else
+        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
 
 // ==========================================
 // 5. VISUALIZATION
 // ==========================================
-plot(ema_trend, "Trend EMA 200", color=color.blue, linewidth=2)
-plot(ema_pullback, "Pullback EMA 50", color=color.orange)
+plot(ema_5m, "EMA 200 (5m)", color=color.blue, linewidth=2)
 
-// Paint signals
-bgcolor(valid_long ? color.new(color.green, 80) : na, title="Long Signal")
-bgcolor(valid_short ? color.new(color.red, 80) : na, title="Short Signal")
+// Paint Background if HTF Trend is aligned
+bgcolor(htf_bullish ? color.new(color.green, 95) : (htf_bearish ? color.new(color.red, 95) : na), title="HTF Trend")
+
+// Plot Signal Shapes
+plotshape(valid_long, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Long Signal")
+plotshape(valid_short, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Short Signal")
