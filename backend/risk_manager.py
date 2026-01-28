@@ -3,7 +3,7 @@ from config import Config
 class RiskManager:
     def __init__(self):
         self.rr_ratio = Config.RISK_REWARD_RATIO
-        self.sl_multiplier = 1.5 # Multiplier for ATR
+        self.sl_multiplier = 1.2 # Multiplier for ATR (Optimized for 5m Scalping/Strong Trend)
 
     def calculate_entry_params(self, signal_type, current_price, df, atr=0):
         """

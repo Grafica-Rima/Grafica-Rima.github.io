@@ -12,7 +12,7 @@ class Strategy:
     def analyze(self, df):
         """
         Analyzes the DataFrame and returns a signal.
-        Logic is strictly based on the LAST CLOSED CANDLE (df.iloc[-2]) and history.
+        PRO SETUP: Trend (EMA200) + ADX > 20 + Pivot Breakout + Volume.
         """
         if len(df) < self.ema_trend + 50:
             return "NEUTRAL"
@@ -23,84 +23,51 @@ class Strategy:
         df['EMA_TREND'] = ta.ema(df['close'], length=self.ema_trend)
         df['VOL_MA'] = ta.sma(df['volume'], length=20)
 
-        # Anti-Chop Filters
-        # ADX > 25 indicates trend presence
-        # ADX is already added by data_handler if supported, otherwise calc here
+        # Calculate ADX if missing
         if 'ADX' not in df.columns:
              adx = ta.adx(df['high'], df['low'], df['close'], length=14)
              if adx is not None: df['ADX'] = adx['ADX_14']
 
         # Candle Selection: strictly closed candles
-        # current = iloc[-1] (Open), last_closed = iloc[-2]
-        # logic must rely on closed data for entry confirmation
         last_closed = df.iloc[-2]
-        prev_closed = df.iloc[-3]
 
         signal = "NEUTRAL"
 
         # 2. Chop & Trend Filters
-        # ADX Check
+        # ADX Check (Using new threshold 20)
         adx_val = last_closed.get('ADX', 0)
-        is_trending = adx_val > 25
+        is_trending = adx_val > Config.ADX_THRESHOLD
 
-        # EMA Distance Check (avoid tight EMAs)
-        ema_dist = abs(last_closed['EMA_FAST'] - last_closed['EMA_SLOW'])
-        min_dist_threshold = last_closed['close'] * 0.0005 # 0.05% distance
-        is_separated = ema_dist > min_dist_threshold
-
-        if not (is_trending and is_separated):
+        if not is_trending:
             return "NEUTRAL"
 
-        # 3. Setup Detection
+        # 3. Setup Detection (Single Setup: Trend Follow)
         trend_bullish = last_closed['close'] > last_closed['EMA_TREND']
         trend_bearish = last_closed['close'] < last_closed['EMA_TREND']
 
         # 4. Trigger Events (on Closed Candle)
 
-        # A. EMA Cross
-        ma_cross_up = (prev_closed['EMA_FAST'] <= prev_closed['EMA_SLOW']) and (last_closed['EMA_FAST'] > last_closed['EMA_SLOW'])
-        ma_cross_down = (prev_closed['EMA_FAST'] >= prev_closed['EMA_SLOW']) and (last_closed['EMA_FAST'] < last_closed['EMA_SLOW'])
-
-        # B. Pattern Breakout (Local Pivots without lookahead)
+        # Strict Pattern Breakout ONLY
         pattern_signal = self._detect_pattern_breakout_safe(df)
-
-        # C. Fibonacci Support/Resistance (Using past swings)
-        is_fib_support = self._check_fibonacci_safe(df, 'support')
-        is_fib_resistance = self._check_fibonacci_safe(df, 'resistance')
 
         # 5. Volume Confirmation
         vol_increasing = last_closed['volume'] > last_closed['VOL_MA']
 
         # 6. Signal Combination
-        if trend_bullish:
-            triggers = [ma_cross_up, pattern_signal == "LONG", is_fib_support]
-            if any(triggers) and vol_increasing:
-                signal = "LONG"
+        if trend_bullish and pattern_signal == "LONG" and vol_increasing:
+            signal = "LONG"
 
-        elif trend_bearish:
-            triggers = [ma_cross_down, pattern_signal == "SHORT", is_fib_resistance]
-            if any(triggers) and vol_increasing:
-                signal = "SHORT"
+        elif trend_bearish and pattern_signal == "SHORT" and vol_increasing:
+            signal = "SHORT"
 
         return signal
 
     def _get_past_pivots(self, df, window=5):
         """
         Finds pivots strictly in the PAST.
-        A pivot high at index `i` is confirmed if `i` was higher than neighbors
-        at `i-window`...`i-1` and `i+1`...`i+window` (BUT we must be currently at `i+window+1` or later).
         """
-        # We only look at data up to iloc[-2] (last closed)
-        # To find a pivot confirmed 5 bars ago, we look at slice [:-1]
-
-        # Simple approach: Find local max/min in rolling window, check if center is extrema
-        # We need specific distinct peaks.
-
-        # Optimization: Just look at the last 50 closed candles
         subset = df.iloc[-60:-1].copy() # Exclude developing candle
 
-        # Check if a candle was a local high/low relative to neighbors
-        # We iterate backwards from current closed
         highs = []
         lows = []
 
@@ -119,41 +86,6 @@ class Strategy:
                 break
 
         return highs, lows
-
-    def _check_fibonacci_safe(self, df, mode):
-        # Use Swing High/Low from the *previous* market structure (e.g., last 100 closed candles)
-        # Exclude recent 5 to avoid testing against current forming swing
-        subset = df.iloc[-100:-5]
-        max_price = subset['high'].max()
-        min_price = subset['low'].min()
-
-        diff = max_price - min_price
-        if diff == 0: return False
-
-        # Fib 0.618 retracement level
-        # Bullish Retracement: Price dropped to min + 0.618 * range?
-        # Usually Retracement is measured from Swing Low to Swing High.
-        # 0.618 Retracement level = Swing High - 0.618 * (High - Low)
-        fib_618_level = max_price - (0.618 * diff)
-
-        # Current closed price
-        current_price = df.iloc[-2]['close']
-        tolerance = current_price * 0.001 # 0.1% tolerance
-
-        if mode == 'support':
-            # Price bouncing UP from 0.618 level?
-            # Or just sitting near it.
-            if abs(current_price - fib_618_level) < tolerance:
-                return True
-
-        # For resistance (Bearish Retracement):
-        # Price rose to Swing Low + 0.618 * range?
-        fib_618_bearish = min_price + (0.618 * diff)
-        if mode == 'resistance':
-             if abs(current_price - fib_618_bearish) < tolerance:
-                return True
-
-        return False
 
     def _detect_pattern_breakout_safe(self, df):
         """

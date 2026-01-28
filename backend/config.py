@@ -20,6 +20,7 @@ class Config:
     EMA_FAST = 9
     EMA_SLOW = 21
     EMA_TREND = 200
+    ADX_THRESHOLD = 20  # Lowered from 25 for better sensitivity in 5m scalping
 
     # Risk Management
     LEVERAGE = 10
