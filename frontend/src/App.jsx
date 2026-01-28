@@ -66,7 +66,7 @@ function App() {
         <div style={styles.priceContainer}>
           <div style={styles.pairDisplay}>{data?.pair || '---'}</div>
           <div style={styles.priceDisplay}>
-            {data?.current_price ? data.current_price.toFixed(2) : '---'}
+            {data?.current_price ? (data.current_price < 1 ? data.current_price.toFixed(5) : data.current_price.toFixed(2)) : '---'}
           </div>
         </div>
 
@@ -84,15 +84,21 @@ function App() {
            <div style={styles.tradeGrid}>
              <div style={styles.tradeItem}>
                 <span>ENTRY</span>
-                <span style={styles.tradeValue}>{data.trade_data.entry?.toFixed(2)}</span>
+                <span style={styles.tradeValue}>
+                  {data.trade_data.entry < 1 ? data.trade_data.entry?.toFixed(5) : data.trade_data.entry?.toFixed(2)}
+                </span>
              </div>
              <div style={styles.tradeItem}>
                 <span>TP</span>
-                <span style={{...styles.tradeValue, color: '#4caf50'}}>{data.trade_data.take_profit?.toFixed(2)}</span>
+                <span style={{...styles.tradeValue, color: '#4caf50'}}>
+                  {data.trade_data.take_profit < 1 ? data.trade_data.take_profit?.toFixed(5) : data.trade_data.take_profit?.toFixed(2)}
+                </span>
              </div>
              <div style={styles.tradeItem}>
                 <span>SL</span>
-                <span style={{...styles.tradeValue, color: '#f44336'}}>{data.trade_data.stop_loss?.toFixed(2)}</span>
+                <span style={{...styles.tradeValue, color: '#f44336'}}>
+                  {data.trade_data.stop_loss < 1 ? data.trade_data.stop_loss?.toFixed(5) : data.trade_data.stop_loss?.toFixed(2)}
+                </span>
              </div>
            </div>
         )}
