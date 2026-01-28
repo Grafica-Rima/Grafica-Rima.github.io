@@ -2,7 +2,7 @@ import ccxt
 import pandas as pd
 import numpy as np
 import time
-from backend.config import Config
+from config import Config
 
 class DataHandler:
     def __init__(self):

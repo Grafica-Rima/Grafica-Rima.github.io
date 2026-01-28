@@ -8,7 +8,7 @@ class Config:
     # Trading Settings
     DEFAULT_PAIR = "BTC/USDT"
     TIMEFRAME = "5m"
-    LIMIT = 100  # Number of candles to fetch for analysis
+    LIMIT = 500  # Number of candles to fetch (must be > EMA_TREND which is 200)
 
     # App Settings
     # If True, generates random data instead of connecting to Binance

@@ -1,10 +1,11 @@
 import socketio
 from fastapi import FastAPI
-from backend.data_handler import DataHandler
-from backend.strategy import Strategy
-from backend.risk_manager import RiskManager
-from backend.state_manager import StateManager
-from backend.config import Config
+from data_handler import DataHandler
+from strategy import Strategy
+from risk_manager import RiskManager
+from state_manager import StateManager
+from config import Config
+from contextlib import asynccontextmanager
 import asyncio
 
 # Initialize Core Modules
@@ -16,8 +17,20 @@ state_manager = StateManager()
 # Global State
 current_pair = Config.DEFAULT_PAIR
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("🚀 Backend starting...")
+
+    trading_task = asyncio.create_task(trading_loop())
+
+    yield  # ← la app queda corriendo acá
+
+    print("🛑 Backend shutting down...")
+    trading_task.cancel()
+
+
 # Setup FastAPI and SocketIO
-fastapi_app = FastAPI()
+fastapi_app = FastAPI(lifespan=lifespan)
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
 
@@ -92,6 +105,11 @@ async def trading_loop():
 
         await asyncio.sleep(3) # Poll every 3 seconds
 
-@fastapi_app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(trading_loop())
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )

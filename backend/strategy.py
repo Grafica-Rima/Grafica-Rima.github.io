@@ -2,7 +2,7 @@ import pandas as pd
 import pandas_ta as ta
 import numpy as np
 from scipy.signal import argrelextrema
-from backend.config import Config
+from config import Config
 
 class Strategy:
     def __init__(self):
