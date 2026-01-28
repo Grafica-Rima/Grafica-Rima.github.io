@@ -3,41 +3,48 @@ from config import Config
 class RiskManager:
     def __init__(self):
         self.rr_ratio = Config.RISK_REWARD_RATIO
+        self.sl_multiplier = 1.5 # Multiplier for ATR
 
-    def calculate_entry_params(self, signal_type, current_price, df):
+    def calculate_entry_params(self, signal_type, current_price, df, atr=0):
         """
-        Calculates fixed Entry, Stop Loss, and Take Profit.
+        Calculates fixed Entry, Stop Loss, and Take Profit using ATR and Structure.
 
-        df: DataFrame containing OHLCV data to find swing points for SL.
+        atr: The ATR value of the last closed candle.
         """
         stop_loss = 0.0
         take_profit = 0.0
         entry_price = current_price
 
-        # Basic Swing Detection for SL (Look back 10 candles)
-        # In a real professional app, this would use more sophisticated pivot detection
+        # Fallback if ATR is missing/zero
+        if not atr or atr == 0:
+            atr = current_price * 0.01 # 1% fallback
+
+        # Lookback for Structure (last 10 closed candles)
         lookback = 10
-        recent_low = df['low'].iloc[-lookback:].min()
-        recent_high = df['high'].iloc[-lookback:].max()
+        subset = df.iloc[-lookback-1:-1] # Exclude current open
+
+        recent_low = subset['low'].min()
+        recent_high = subset['high'].max()
 
         if signal_type == "LONG":
-            # SL is recent low. If recent low is too close, use a default buffer (e.g. 0.5%)
-            stop_loss = recent_low
+            # SL = Structure Low - (1.5 * ATR)
+            # This avoids "liquidity grabs" exactly at the wick
+            stop_loss = recent_low - (self.sl_multiplier * atr)
 
-            # Safety check: if SL >= Entry (impossible for Long), force a buffer
+            # Safety: Ensure SL is below Entry
             if stop_loss >= entry_price:
-                stop_loss = entry_price * 0.995
+                 stop_loss = entry_price - (2 * atr)
 
             risk = entry_price - stop_loss
             take_profit = entry_price + (risk * self.rr_ratio)
 
         elif signal_type == "SHORT":
-            # SL is recent high
-            stop_loss = recent_high
+            # SL = Structure High + (1.5 * ATR)
+            stop_loss = recent_high + (self.sl_multiplier * atr)
 
-            # Safety check
+            # Safety: Ensure SL is above Entry
             if stop_loss <= entry_price:
-                stop_loss = entry_price * 1.005
+                stop_loss = entry_price + (2 * atr)
 
             risk = stop_loss - entry_price
             take_profit = entry_price - (risk * self.rr_ratio)

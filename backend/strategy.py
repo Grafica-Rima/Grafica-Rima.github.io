@@ -1,7 +1,6 @@
 import pandas as pd
 import pandas_ta as ta
 import numpy as np
-from scipy.signal import argrelextrema
 from config import Config
 
 class Strategy:
@@ -13,149 +12,169 @@ class Strategy:
     def analyze(self, df):
         """
         Analyzes the DataFrame and returns a signal.
-        df: DataFrame with at least ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+        Logic is strictly based on the LAST CLOSED CANDLE (df.iloc[-2]) and history.
         """
-        if len(df) < self.ema_trend + 10:
+        if len(df) < self.ema_trend + 50:
             return "NEUTRAL"
 
-        # 1. Indicators
+        # 1. Indicators Calculation
         df['EMA_FAST'] = ta.ema(df['close'], length=self.ema_fast)
         df['EMA_SLOW'] = ta.ema(df['close'], length=self.ema_slow)
         df['EMA_TREND'] = ta.ema(df['close'], length=self.ema_trend)
-
-        # Volume Moving Average
         df['VOL_MA'] = ta.sma(df['volume'], length=20)
 
-        # Get latest closed candle (iloc[-2] because iloc[-1] might be open/developing if fetched real-time)
-        # However, user said "When a new candle opens, observe the LAST CLOSED candle".
-        # So we assume df includes the last closed candle at the end, or we handle the logic.
-        # Usually, fetched data includes the latest one. If we fetch 'limit=100', the last row is the latest.
-        # If the latest is still open, we should look at -2.
-        # For simplicity, we assume we are analyzing the latest available COMPLETE data point.
-        # If we fetch continuously, we usually ignore the last row if it's the current incomplete candle.
-        # Let's assume the caller handles stripping the incomplete candle, OR we just look at iloc[-1] assuming it's the target.
-        # User: "When a new candle opens, ... observe [the] last closed candle"
+        # Anti-Chop Filters
+        # ADX > 25 indicates trend presence
+        # ADX is already added by data_handler if supported, otherwise calc here
+        if 'ADX' not in df.columns:
+             adx = ta.adx(df['high'], df['low'], df['close'], length=14)
+             if adx is not None: df['ADX'] = adx['ADX_14']
 
-        current_candle = df.iloc[-1]
-        prev_candle = df.iloc[-2]
+        # Candle Selection: strictly closed candles
+        # current = iloc[-1] (Open), last_closed = iloc[-2]
+        # logic must rely on closed data for entry confirmation
+        last_closed = df.iloc[-2]
+        prev_closed = df.iloc[-3]
 
         signal = "NEUTRAL"
 
-        # 2. Pattern & Fib Analysis
-        is_fib_support = self._check_fibonacci(df, 'support')
-        is_fib_resistance = self._check_fibonacci(df, 'resistance')
+        # 2. Chop & Trend Filters
+        # ADX Check
+        adx_val = last_closed.get('ADX', 0)
+        is_trending = adx_val > 25
 
-        pattern_signal = self._detect_pattern_breakout(df)
+        # EMA Distance Check (avoid tight EMAs)
+        ema_dist = abs(last_closed['EMA_FAST'] - last_closed['EMA_SLOW'])
+        min_dist_threshold = last_closed['close'] * 0.0005 # 0.05% distance
+        is_separated = ema_dist > min_dist_threshold
 
-        # 3. Moving Average Logic
-        # Bullish: Fast > Slow & Price > Trend
-        trend_bullish = current_candle['close'] > current_candle['EMA_TREND']
-        trend_bearish = current_candle['close'] < current_candle['EMA_TREND']
+        if not (is_trending and is_separated):
+            return "NEUTRAL"
 
-        ma_cross_up = (prev_candle['EMA_FAST'] <= prev_candle['EMA_SLOW']) and (current_candle['EMA_FAST'] > current_candle['EMA_SLOW'])
-        ma_cross_down = (prev_candle['EMA_FAST'] >= prev_candle['EMA_SLOW']) and (current_candle['EMA_FAST'] < current_candle['EMA_SLOW'])
+        # 3. Setup Detection
+        trend_bullish = last_closed['close'] > last_closed['EMA_TREND']
+        trend_bearish = last_closed['close'] < last_closed['EMA_TREND']
 
-        # 4. Volume Confirmation
-        # Check LAST CLOSED candle for high volume (confirming the move started)
-        # OR check current candle if it is already exceeding average (strong impulse)
-        vol_increasing = (prev_candle['volume'] > prev_candle['VOL_MA']) or \
-                         (current_candle['volume'] > current_candle['VOL_MA'])
+        # 4. Trigger Events (on Closed Candle)
 
-        # 5. Signal Combination
+        # A. EMA Cross
+        ma_cross_up = (prev_closed['EMA_FAST'] <= prev_closed['EMA_SLOW']) and (last_closed['EMA_FAST'] > last_closed['EMA_SLOW'])
+        ma_cross_down = (prev_closed['EMA_FAST'] >= prev_closed['EMA_SLOW']) and (last_closed['EMA_FAST'] < last_closed['EMA_SLOW'])
 
-        # LONG CRITERIA
+        # B. Pattern Breakout (Local Pivots without lookahead)
+        pattern_signal = self._detect_pattern_breakout_safe(df)
+
+        # C. Fibonacci Support/Resistance (Using past swings)
+        is_fib_support = self._check_fibonacci_safe(df, 'support')
+        is_fib_resistance = self._check_fibonacci_safe(df, 'resistance')
+
+        # 5. Volume Confirmation
+        vol_increasing = last_closed['volume'] > last_closed['VOL_MA']
+
+        # 6. Signal Combination
         if trend_bullish:
-            if (pattern_signal == "LONG" or is_fib_support or ma_cross_up) and vol_increasing:
+            triggers = [ma_cross_up, pattern_signal == "LONG", is_fib_support]
+            if any(triggers) and vol_increasing:
                 signal = "LONG"
 
-        # SHORT CRITERIA
         elif trend_bearish:
-            if (pattern_signal == "SHORT" or is_fib_resistance or ma_cross_down) and vol_increasing:
+            triggers = [ma_cross_down, pattern_signal == "SHORT", is_fib_resistance]
+            if any(triggers) and vol_increasing:
                 signal = "SHORT"
 
         return signal
 
-    def _check_fibonacci(self, df, mode):
-        # Identify significant Swing High/Low in the last 50 candles
-        window = 50
-        subset = df.iloc[-window:]
+    def _get_past_pivots(self, df, window=5):
+        """
+        Finds pivots strictly in the PAST.
+        A pivot high at index `i` is confirmed if `i` was higher than neighbors
+        at `i-window`...`i-1` and `i+1`...`i+window` (BUT we must be currently at `i+window+1` or later).
+        """
+        # We only look at data up to iloc[-2] (last closed)
+        # To find a pivot confirmed 5 bars ago, we look at slice [:-1]
+
+        # Simple approach: Find local max/min in rolling window, check if center is extrema
+        # We need specific distinct peaks.
+
+        # Optimization: Just look at the last 50 closed candles
+        subset = df.iloc[-60:-1].copy() # Exclude developing candle
+
+        # Check if a candle was a local high/low relative to neighbors
+        # We iterate backwards from current closed
+        highs = []
+        lows = []
+
+        for i in range(len(subset) - window - 1, window, -1):
+            center = subset.iloc[i]
+            left = subset.iloc[i-window:i]
+            right = subset.iloc[i+1:i+window+1]
+
+            if center['high'] >= left['high'].max() and center['high'] >= right['high'].max():
+                highs.append(center['high'])
+
+            if center['low'] <= left['low'].min() and center['low'] <= right['low'].min():
+                lows.append(center['low'])
+
+            if len(highs) >= 2 and len(lows) >= 2:
+                break
+
+        return highs, lows
+
+    def _check_fibonacci_safe(self, df, mode):
+        # Use Swing High/Low from the *previous* market structure (e.g., last 100 closed candles)
+        # Exclude recent 5 to avoid testing against current forming swing
+        subset = df.iloc[-100:-5]
         max_price = subset['high'].max()
         min_price = subset['low'].min()
 
         diff = max_price - min_price
         if diff == 0: return False
 
-        # Fib Levels
-        fib_618 = min_price + (diff * 0.618)
-        fib_382 = min_price + (diff * 0.382)
+        # Fib 0.618 retracement level
+        # Bullish Retracement: Price dropped to min + 0.618 * range?
+        # Usually Retracement is measured from Swing Low to Swing High.
+        # 0.618 Retracement level = Swing High - 0.618 * (High - Low)
+        fib_618_level = max_price - (0.618 * diff)
 
-        current_price = df.iloc[-1]['close']
-
-        # Tolerance usually 0.05%
-        tolerance = current_price * 0.0005
+        # Current closed price
+        current_price = df.iloc[-2]['close']
+        tolerance = current_price * 0.001 # 0.1% tolerance
 
         if mode == 'support':
-            # Price bouncing off 0.618 retracement in an uptrend context?
-            # Or simplified: is price near a key fib level that acts as support?
-            # If we are simply looking for "near 0.618"
-            if abs(current_price - fib_618) < tolerance:
+            # Price bouncing UP from 0.618 level?
+            # Or just sitting near it.
+            if abs(current_price - fib_618_level) < tolerance:
                 return True
-        elif mode == 'resistance':
-            if abs(current_price - fib_382) < tolerance: # 382 from bottom is 618 from top
+
+        # For resistance (Bearish Retracement):
+        # Price rose to Swing Low + 0.618 * range?
+        fib_618_bearish = min_price + (0.618 * diff)
+        if mode == 'resistance':
+             if abs(current_price - fib_618_bearish) < tolerance:
                 return True
 
         return False
 
-    def _detect_pattern_breakout(self, df):
+    def _detect_pattern_breakout_safe(self, df):
         """
-        Simplified pattern detection using slope of recent pivots.
-        Returns "LONG", "SHORT", or None
+        Detects breakout of recent pivots (Support/Resistance Flip).
         """
-        # Find pivots
-        n = 5 # Neighbor comparison
-        df['min'] = df.iloc[argrelextrema(df.close.values, np.less_equal, order=n)[0]]['close']
-        df['max'] = df.iloc[argrelextrema(df.close.values, np.greater_equal, order=n)[0]]['close']
+        highs, lows = self._get_past_pivots(df, window=3)
 
-        last_highs = df['max'].dropna().iloc[-3:]
-        last_lows = df['min'].dropna().iloc[-3:]
+        if not highs or not lows: return None
 
-        if len(last_highs) < 2 or len(last_lows) < 2:
-            return None
+        last_pivot_high = highs[0] # Most recent pivot high
+        last_pivot_low = lows[0]   # Most recent pivot low
 
-        # Slope calculation
-        highs_slope = (last_highs.iloc[-1] - last_highs.iloc[0]) / len(last_highs)
-        lows_slope = (last_lows.iloc[-1] - last_lows.iloc[0]) / len(last_lows)
+        current_close = df.iloc[-2]['close']
+        prev_close = df.iloc[-3]['close']
 
-        # Wedge/Pennant: Lines converging
-        # Bullish Wedge: Lower Highs (negative slope), Lower Lows (negative slope), but converging?
-        # Or Bullish Pennant: Symetric triangle.
-
-        # Let's focus on BREAKOUT logic.
-        # If price closes ABOVE the trendline formed by last highs -> Long Breakout
-
-        # Trendline Upper
-        x1 = list(last_highs.index)[-2]
-        y1 = last_highs.iloc[-2]
-        x2 = list(last_highs.index)[-1]
-        y2 = last_highs.iloc[-1]
-
-        # Map indices to integer positions for line equation
-        # This is tricky with time indices. We'll simplify using index location.
-        # But indices in df might be datetime if we set it as index, or ints.
-        # data_handler returns RangeIndex usually if we didn't set index.
-        # Let's assume RangeIndex for safety or reset it.
-
-        # Simpler approach:
-        # If Close > Last Pivot High and Volume is high (checked in main) -> Long
-        # If Close < Last Pivot Low -> Short
-
-        current_close = df.iloc[-1]['close']
-        last_pivot_high = last_highs.iloc[-1]
-        last_pivot_low = last_lows.iloc[-1]
-
-        if current_close > last_pivot_high:
+        # Breakout Long: Close crossed above last pivot high
+        if prev_close < last_pivot_high and current_close > last_pivot_high:
             return "LONG"
-        elif current_close < last_pivot_low:
+
+        # Breakout Short: Close crossed below last pivot low
+        if prev_close > last_pivot_low and current_close < last_pivot_low:
             return "SHORT"
 
         return None
