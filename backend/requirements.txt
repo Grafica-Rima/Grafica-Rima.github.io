@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+ccxt
+pandas
+pandas_ta
+python-socketio
+numpy
+scipy
