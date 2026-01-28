@@ -1,0 +1,142 @@
+//@version=5
+strategy("Institutional 5m Crypto Strategy v6 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=20)
+
+// ==========================================
+// 1. INPUTS & CONFIGURATION
+// ==========================================
+grp_main = "Strategy Settings"
+use_htf   = input.bool(true, "Use 15m Trend Filter?", group=grp_main, tooltip="Only trade if 15m trend aligns with 5m signal.")
+htf_res   = input.timeframe("15", "HTF Resolution", group=grp_main)
+len_adx   = input.int(14, "ADX Length", group=grp_main)
+th_adx    = input.int(20, "ADX Threshold (Min Trend)", group=grp_main)
+
+grp_ind   = "Indicators"
+len_ema   = input.int(200, "Trend EMA (5m)", group=grp_ind)
+len_stoch = input.int(14, "Stoch RSI Length", group=grp_ind)
+smooth_k  = input.int(3, "Stoch K", group=grp_ind)
+smooth_d  = input.int(3, "Stoch D", group=grp_ind)
+
+grp_risk  = "Risk Management"
+rr_ratio  = input.float(1.5, "Risk:Reward Ratio", step=0.1, group=grp_risk)
+atr_mult  = input.float(2.0, "SL Multiplier (ATR)", step=0.1, group=grp_risk)
+use_be    = input.bool(true, "Move to Breakeven?", group=grp_risk)
+be_trig   = input.float(1.0, "Breakeven Trigger (R)", step=0.1)
+
+// ==========================================
+// 2. INDICATORS & HTF LOGIC
+// ==========================================
+
+// --- 5m Indicators ---
+ema_5m = ta.ema(close, len_ema)
+atr_5m = ta.atr(14)
+
+// ADX (Trend Strength)
+[di_plus, di_minus, adx] = ta.dmi(len_adx, len_adx)
+is_trending = adx > th_adx
+
+// Stochastic RSI (Momentum/Trigger)
+rsi1 = ta.rsi(close, len_stoch)
+k = ta.sma(ta.stoch(rsi1, rsi1, rsi1, len_stoch), smooth_k)
+d = ta.sma(k, smooth_d)
+
+// --- HTF Logic (Request 15m Data) ---
+// We check if 15m Close is above 15m EMA 50 (General Trend)
+htf_ema_len = 50
+htf_ema = ta.ema(close, htf_ema_len) // Calculated on HTF
+htf_close = close
+
+// Get HTF values
+// We use lookahead_off to prevent repainting. This ensures we only see the state of the 15m bar
+// that has already closed or the current developing state, without peeking into the future.
+[h_close, h_ema] = request.security(syminfo.tickerid, htf_res, [close, ta.ema(close, htf_ema_len)], lookahead=barmerge.lookahead_off)
+
+htf_bullish = use_htf ? (h_close > h_ema) : true
+htf_bearish = use_htf ? (h_close < h_ema) : true
+
+// ==========================================
+// 3. SIGNAL GENERATION
+// ==========================================
+
+// --- Setup: Trend Alignment ---
+// Long Setup: 5m Price > 5m EMA 200 AND 15m Price > 15m EMA 50 AND ADX > 20
+setup_long = close > ema_5m and htf_bullish and is_trending
+// Short Setup: 5m Price < 5m EMA 200 AND 15m Price < 15m EMA 50 AND ADX > 20
+setup_short = close < ema_5m and htf_bearish and is_trending
+
+// --- Trigger: Stoch RSI Cross (Pullback Entry) ---
+// We look for Oversold Crossovers in Uptrend, Overbought Crossunders in Downtrend
+// This catches the "Dip" rather than the "Top"
+trigger_long = ta.crossover(k, d) and k < 30
+trigger_short = ta.crossunder(k, d) and k > 70
+
+valid_long = setup_long and trigger_long
+valid_short = setup_short and trigger_short
+
+// ==========================================
+// 4. EXECUTION & RISK MANAGEMENT
+// ==========================================
+var float trade_entry = na
+var float trade_sl = na
+var float trade_tp = na
+var bool trade_be_moved = false
+
+// --- ENTRY ---
+if strategy.position_size == 0
+    if valid_long
+        // ATR Based SL
+        float vol_sl = atr_5m * atr_mult
+        trade_sl := close - vol_sl
+        trade_entry := close
+
+        // Calculate Risk
+        float risk = trade_entry - trade_sl
+        trade_tp := trade_entry + (risk * rr_ratio)
+        trade_be_moved := false
+
+        strategy.entry("Long", strategy.long, comment="L-Pullback")
+        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp)
+
+    if valid_short
+        float vol_sl = atr_5m * atr_mult
+        trade_sl := close + vol_sl
+        trade_entry := close
+
+        float risk = trade_sl - trade_entry
+        trade_tp := trade_entry - (risk * rr_ratio)
+        trade_be_moved := false
+
+        strategy.entry("Short", strategy.short, comment="S-Pullback")
+        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp)
+
+// --- MANAGEMENT (Breakeven) ---
+if strategy.position_size > 0
+    if use_be and not trade_be_moved
+        float risk = trade_entry - trade_sl
+        if high >= trade_entry + (risk * be_trig)
+            trade_sl := trade_entry * 1.0005
+            trade_be_moved := true
+            strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+    else
+        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+if strategy.position_size < 0
+    if use_be and not trade_be_moved
+        float risk = trade_sl - trade_entry
+        if low <= trade_entry - (risk * be_trig)
+            trade_sl := trade_entry * 0.9995
+            trade_be_moved := true
+            strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+    else
+        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+
+// ==========================================
+// 5. VISUALIZATION
+// ==========================================
+plot(ema_5m, "EMA 200 (5m)", color=color.blue, linewidth=2)
+
+// Paint Background if HTF Trend is aligned
+bgcolor(htf_bullish ? color.new(color.green, 95) : (htf_bearish ? color.new(color.red, 95) : na), title="HTF Trend")
+
+// Plot Signal Shapes
+plotshape(valid_long, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small, title="Long Signal")
+plotshape(valid_short, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small, title="Short Signal")
