@@ -1,188 +1,155 @@
 //@version=5
-strategy("Institutional 5m Crypto Strategy v2 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, default_qty_type=strategy.percent_of_equity, default_qty_value=10)
+strategy("Institutional 5m Crypto Strategy v3 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
 
 // ==========================================
 // 1. INPUTS & CONFIGURATION
 // ==========================================
 grp_ind = "Indicators"
-len_ema_fast = input.int(50, "Fast EMA Length", group=grp_ind)
-len_ema_slow = input.int(200, "Slow EMA Length", group=grp_ind)
-len_vol = input.int(20, "Volume SMA Length", group=grp_ind)
-vol_mult = input.float(1.5, "Volume Spike Multiplier", group=grp_ind, step=0.1)
+len_ema_1 = input.int(50, "EMA 1 Length", group=grp_ind)
+len_ema_2 = input.int(100, "EMA 2 Length", group=grp_ind)
+len_ema_3 = input.int(200, "EMA 3 Length", group=grp_ind)
 
-grp_filt = "Filters (ADX & RSI)"
-use_adx = input.bool(true, "Use ADX Filter?", group=grp_filt)
-len_adx = input.int(14, "ADX Length", group=grp_filt)
-th_adx = input.int(20, "ADX Threshold", group=grp_filt)
-len_rsi = input.int(14, "RSI Length", group=grp_filt)
+grp_filt = "Entry Filters"
+use_vol = input.bool(true, "Use Volume Spike?", group=grp_filt)
+vol_mult = input.float(1.5, "Vol Multiplier", group=grp_filt)
+use_rsi = input.bool(true, "Use RSI Rejection?", group=grp_filt)
 
-grp_piv = "Pivots / Market Structure"
-left_bars = input.int(10, "Pivot Left Bars (Stricter)", group=grp_piv)
-right_bars = input.int(10, "Pivot Right Bars (Stricter)", group=grp_piv)
+grp_piv = "Market Structure (Pivots)"
+left_bars = input.int(15, "Pivot Left Bars (Major)", group=grp_piv)
+right_bars = input.int(5, "Pivot Right Bars (Fast)", group=grp_piv)
 
 grp_risk = "Risk Management"
-rr_ratio = input.float(2.0, "Risk:Reward Ratio", step=0.1, group=grp_risk)
-use_fib_tp = input.bool(true, "Use Fib 1.618 as TP target?", group=grp_risk)
+rr_ratio = input.float(2.5, "Risk:Reward Ratio", step=0.1, group=grp_risk)
+use_be = input.bool(true, "Move to Breakeven?", group=grp_risk)
+be_trigger = input.float(1.0, "Trigger BE at R:R", step=0.1, tooltip="Move SL to Entry when price reaches 1.0x Risk")
 
 // ==========================================
 // 2. INDICATORS
 // ==========================================
-// Moving Averages
-ema_fast = ta.ema(close, len_ema_fast)
-ema_slow = ta.ema(close, len_ema_slow)
+// Triple EMA Cloud for Trend Strength
+ema_1 = ta.ema(close, len_ema_1)
+ema_2 = ta.ema(close, len_ema_2)
+ema_3 = ta.ema(close, len_ema_3)
 
-// Volume
-vol_sma = ta.sma(volume, len_vol)
-vol_spike = volume > vol_sma * vol_mult
+// Strong Trend Definition: Perfect Alignment
+trend_strong_bull = close > ema_1 and ema_1 > ema_2 and ema_2 > ema_3
+trend_strong_bear = close < ema_1 and ema_1 < ema_2 and ema_2 < ema_3
+
+// Volume Spike
+vol_sma = ta.sma(volume, 20)
+vol_ok = use_vol ? (volume > vol_sma * vol_mult) : true
 
 // RSI
-rsi = ta.rsi(close, len_rsi)
+rsi = ta.rsi(close, 14)
+// RSI Rejection Logic:
+// Long: RSI was oversold (<35) recently and is now recovering? OR just healthy momentum (>45).
+// User had losses, likely due to catching falling knives.
+// New Logic: Only enter if RSI is > 40 (momentum is there) and < 65 (room to grow).
+rsi_long_ok = use_rsi ? (rsi > 40 and rsi < 65) : true
+rsi_short_ok = use_rsi ? (rsi < 60 and rsi > 35) : true
 
-// ADX
-[di_plus, di_minus, adx] = ta.dmi(len_adx, len_adx)
-is_trending = use_adx ? (adx > th_adx) : true
-
-// Pivots for Market Structure
+// Pivots
 ph = ta.pivothigh(high, left_bars, right_bars)
 pl = ta.pivotlow(low, left_bars, right_bars)
 
-// Variable persistence for Market Structure
 var float last_ph = na
 var float last_pl = na
-var float prev_ph = na
-var float prev_pl = na
 
 if not na(ph)
-    prev_ph := last_ph
     last_ph := ph
 if not na(pl)
-    prev_pl := last_pl
     last_pl := pl
 
 // ==========================================
-// 3. PATTERN RECOGNITION (Institutional)
+// 3. SIGNAL GENERATION
 // ==========================================
 
-// --- Fibonacci Retracement Logic ---
-var float fib_entry_long = na
-var float fib_entry_short = na
+// --- Signal 1: Break of Structure (BOS) with Trend ---
+// Price breaks the last Pivot High in a Bull Trend
+bos_long = trend_strong_bull and not na(last_ph) and ta.crossover(close, last_ph)
+// Price breaks the last Pivot Low in a Bear Trend
+bos_short = trend_strong_bear and not na(last_pl) and ta.crossunder(close, last_pl)
 
-// Calculate Fib levels when we have a confirmed range
-// Valid Up Swing: last_ph follows last_pl
-if not na(ph) and not na(last_pl)
-    float swing_range = ph - last_pl
-    if swing_range > 0
-        fib_entry_long := ph - (swing_range * 0.618)
+// --- Signal 2: Pullback to Value (Dynamic Support) ---
+// Price touches EMA 50/100 area in a strong trend and rejects
+// (Simplified to just BOS for now to reduce noise as requested)
 
-// Valid Down Swing: last_pl follows last_ph
-if not na(pl) and not na(last_ph)
-    float swing_range = last_ph - pl
-    if swing_range > 0
-        fib_entry_short := pl + (swing_range * 0.618)
+valid_long = bos_long and vol_ok and rsi_long_ok
+valid_short = bos_short and vol_ok and rsi_short_ok
 
 // ==========================================
-// 4. SIGNAL GENERATION
+// 4. EXECUTION & RISK MANAGEMENT
 // ==========================================
-
-// Global Trend Filter (Stricter: EMAs must be aligned)
-trend_bullish = ema_fast > ema_slow and close > ema_fast
-trend_bearish = ema_fast < ema_slow and close < ema_fast
-
-// RSI Filter (Avoid Overbought/Oversold entries)
-rsi_bullish = rsi > 45 and rsi < 70
-rsi_bearish = rsi < 55 and rsi > 30
-
-// --- Long Signal Conditions ---
-// Detect Break of Structure (BOS) - Breakout Strategy
-long_bos = not na(last_ph) and ta.crossover(close, last_ph)
-short_bos = not na(last_pl) and ta.crossunder(close, last_pl)
-
-// Detect Fib Touch (Bounce Strategy)
-long_fib_bounce = not na(fib_entry_long) and low <= fib_entry_long and close > fib_entry_long
-short_fib_bounce = not na(fib_entry_short) and high >= fib_entry_short and close < fib_entry_short
-
-// Combined Entry Triggers
-// Must satisfy: Trend + RSI + ADX + Vol Spike + Pattern
-valid_long_bos = trend_bullish and is_trending and rsi_bullish and long_bos and vol_spike
-valid_short_bos = trend_bearish and is_trending and rsi_bearish and short_bos and vol_spike
-
-valid_long_fib = trend_bullish and is_trending and rsi_bullish and long_fib_bounce and vol_spike
-valid_short_fib = trend_bearish and is_trending and rsi_bearish and short_fib_bounce and vol_spike
-
-// ==========================================
-// 5. EXECUTION & RISK MANAGEMENT
-// ==========================================
-
-// Variables to store fixed SL/TP for the current trade
+var float trade_entry = na
 var float trade_sl = na
 var float trade_tp = na
+var bool trade_be_moved = false
 
-// --- ENTRY LOGIC ---
+// --- ENTRY ---
 if strategy.position_size == 0
-    // LONG
-    if valid_long_bos or valid_long_fib
-        float sl = na
-        float risk = na
-        float entry_price = close
+    if valid_long
+        // Set SL below the breakout candle Low OR the EMA 50 (dynamic support)
+        // A tighter SL improves R:R. Let's use the Low of the breakout sequence (Pivot Right Bars lookback)
+        float swing_low = ta.lowest(low, right_bars)
+        trade_sl := math.min(swing_low, close * 0.995) // Max 0.5% risk per trade logic could be here
+        trade_entry := close
+        float risk = trade_entry - trade_sl
 
-        if valid_long_fib
-            // For Fib entry, SL is below the swing low
-            sl := not na(last_pl) ? last_pl : low * 0.99
-            strategy.entry("Long Fib", strategy.long, comment="L-Fib")
-        else
-            // For BOS entry, SL is below the recent low
-            sl := not na(last_pl) ? last_pl : low * 0.99
-            strategy.entry("Long BOS", strategy.long, comment="L-BOS")
+        // Safety: Minimum SL distance to avoid noise
+        if risk < close * 0.002
+            risk := close * 0.002
+            trade_sl := close - risk
 
-        // Set Risk Variables
-        trade_sl := sl
-        risk := entry_price - trade_sl
-        // Min risk check to avoid zero div or tiny stops
-        if risk <= (entry_price * 0.002)
-            risk := entry_price * 0.005
-            trade_sl := entry_price - risk
+        trade_tp := trade_entry + (risk * rr_ratio)
+        trade_be_moved := false
 
-        trade_tp := use_fib_tp ? entry_price + (risk * 1.618) : entry_price + (risk * rr_ratio)
-        strategy.exit("Exit Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+        strategy.entry("Long", strategy.long, comment="L-BOS")
+        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp)
 
-    // SHORT
-    if valid_short_bos or valid_short_fib
-        float sl = na
-        float risk = na
-        float entry_price = close
+    if valid_short
+        float swing_high = ta.highest(high, right_bars)
+        trade_sl := math.max(swing_high, close * 1.005)
+        trade_entry := close
+        float risk = trade_sl - trade_entry
 
-        if valid_short_fib
-            sl := not na(last_ph) ? last_ph : high * 1.01
-            strategy.entry("Short Fib", strategy.short, comment="S-Fib")
-        else
-            sl := not na(last_ph) ? last_ph : high * 1.01
-            strategy.entry("Short BOS", strategy.short, comment="S-BOS")
+        if risk < close * 0.002
+            risk := close * 0.002
+            trade_sl := close + risk
 
-        // Set Risk Variables
-        trade_sl := sl
-        risk := trade_sl - entry_price
-        if risk <= (entry_price * 0.002)
-            risk := entry_price * 0.005
-            trade_sl := entry_price + risk
+        trade_tp := trade_entry - (risk * rr_ratio)
+        trade_be_moved := false
 
-        trade_tp := use_fib_tp ? entry_price - (risk * 1.618) : entry_price - (risk * rr_ratio)
-        strategy.exit("Exit Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+        strategy.entry("Short", strategy.short, comment="S-BOS")
+        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp)
 
-// --- EXIT LOGIC (PERSISTENCE) ---
-if strategy.position_size > 0
-    strategy.exit("Exit Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+// --- MANAGEMENT (Breakeven) ---
+// If price moves X amount in our favor, move SL to Entry.
+if strategy.position_size > 0 and use_be and not trade_be_moved
+    float risk = trade_entry - trade_sl
+    if high >= trade_entry + (risk * be_trigger)
+        trade_sl := trade_entry * 1.0005 // Slight profit to cover fees
+        trade_be_moved := true
+        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+else if strategy.position_size > 0
+    // Persist Exit
+    strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
 
-if strategy.position_size < 0
-    strategy.exit("Exit Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+if strategy.position_size < 0 and use_be and not trade_be_moved
+    float risk = trade_sl - trade_entry
+    if low <= trade_entry - (risk * be_trigger)
+        trade_sl := trade_entry * 0.9995 // Slight profit to cover fees
+        trade_be_moved := true
+        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
+else if strategy.position_size < 0
+    // Persist Exit
+    strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
 
 // ==========================================
-// 6. VISUALIZATION
+// 5. VISUALIZATION
 // ==========================================
-plot(ema_fast, "EMA 50", color=color.yellow)
-plot(ema_slow, "EMA 200", color=color.blue, linewidth=2)
-plotshape(ph, style=shape.triangledown, location=location.abovebar, color=color.red, offset=-right_bars)
-plotshape(pl, style=shape.triangleup, location=location.belowbar, color=color.green, offset=-right_bars)
+plot(ema_1, "EMA 50", color=color.yellow)
+plot(ema_2, "EMA 100", color=color.orange)
+plot(ema_3, "EMA 200", color=color.blue, linewidth=2)
 
-// Background color for trend/ADX
-bg_color = is_trending ? (trend_bullish ? color.new(color.green, 95) : (trend_bearish ? color.new(color.red, 95) : na)) : na
-bgcolor(bg_color, title="Trend + ADX Active")
+// Paint candles where trend is perfect
+barcolor(trend_strong_bull ? color.green : (trend_strong_bear ? color.red : na))
