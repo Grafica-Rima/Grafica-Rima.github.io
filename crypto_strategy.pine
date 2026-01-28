@@ -15,7 +15,7 @@ vol_mult = input.float(1.5, "Vol Multiplier", group=grp_filt)
 use_rsi = input.bool(true, "Use RSI Rejection?", group=grp_filt)
 
 grp_sess = "Time / Session Filter"
-use_session = input.bool(true, "Trade Only Specific Session?", group=grp_sess)
+use_session = input.bool(false, "Trade Only Specific Session?", group=grp_sess, tooltip="Crypto trades 24/7, but 'Smart Money' moves often happen during London/NY hours. Enable this to filter out low-volume Asian chop.")
 session_time = input.session("0800-1600", "Session Time (UTC)", group=grp_sess, tooltip="Format: HHMM-HHMM. Example: 0800-1600 for London/NY Overlap")
 
 grp_piv = "Market Structure (Pivots)"
