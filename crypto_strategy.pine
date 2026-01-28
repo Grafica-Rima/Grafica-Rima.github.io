@@ -128,7 +128,7 @@ if strategy.position_size == 0
             trade_sl := sl
             float entry_price = close
             risk := entry_price - trade_sl
-             if risk <= 0
+            if risk <= 0
                 risk := entry_price * 0.01
                 trade_sl := entry_price - risk
             trade_tp := use_fib_tp ? entry_price + (risk * 1.618) : entry_price + (risk * rr_ratio)
