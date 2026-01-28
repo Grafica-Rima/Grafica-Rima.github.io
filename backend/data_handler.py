@@ -63,13 +63,21 @@ class DataHandler:
         return df
 
     def add_indicators(self, df):
-        """Adds essential indicators for Strategy/Risk (ATR)"""
+        """Adds essential indicators for Strategy/Risk (ATR, EMAs, ADX) efficiently"""
         if df is None or df.empty: return df
 
-        # ATR for Risk Management
+        # Risk Management: ATR
         df['ATR'] = ta.atr(df['high'], df['low'], df['close'], length=14)
 
-        # ADX for Chop Filter
+        # Strategy: EMAs
+        df['EMA_FAST'] = ta.ema(df['close'], length=Config.EMA_FAST)
+        df['EMA_SLOW'] = ta.ema(df['close'], length=Config.EMA_SLOW)
+        df['EMA_TREND'] = ta.ema(df['close'], length=Config.EMA_TREND)
+
+        # Strategy: Volume MA
+        df['VOL_MA'] = ta.sma(df['volume'], length=20)
+
+        # Strategy: ADX
         adx = ta.adx(df['high'], df['low'], df['close'], length=14)
         if adx is not None and not adx.empty:
             df['ADX'] = adx['ADX_14']

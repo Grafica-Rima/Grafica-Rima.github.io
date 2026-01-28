@@ -43,7 +43,7 @@ async def connect(sid, environ):
 
 @sio.event
 async def request_pair_change(sid, new_pair):
-    global current_pair
+    global current_pair, last_processed_candle
     print(f"Request to change pair to: {new_pair}")
 
     clean = new_pair.upper().strip()
@@ -51,6 +51,8 @@ async def request_pair_change(sid, new_pair):
     if "/" not in clean and "USDT" in clean: clean = clean.replace("USDT", "/USDT")
 
     current_pair = clean
+    last_processed_candle = None # Reset so we don't skip the first signal of the new pair
+
     await sio.emit('status_update', {'message': f'Switched to {current_pair}'})
 
 async def trading_loop():

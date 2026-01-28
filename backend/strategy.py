@@ -1,5 +1,4 @@
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
 from config import Config
 
@@ -12,31 +11,26 @@ class Strategy:
     def analyze(self, df):
         """
         Analyzes the DataFrame and returns a signal.
-        PRO SETUP: Trend (EMA200) + ADX > 20 + Pivot Breakout + Volume.
+        PRO SETUP: Trend (EMA200) + ADX > 18 & Rising + Pivot Breakout + Volume.
         """
         if len(df) < self.ema_trend + 50:
             return "NEUTRAL"
 
-        # 1. Indicators Calculation
-        df['EMA_FAST'] = ta.ema(df['close'], length=self.ema_fast)
-        df['EMA_SLOW'] = ta.ema(df['close'], length=self.ema_slow)
-        df['EMA_TREND'] = ta.ema(df['close'], length=self.ema_trend)
-        df['VOL_MA'] = ta.sma(df['volume'], length=20)
-
-        # Calculate ADX if missing
-        if 'ADX' not in df.columns:
-             adx = ta.adx(df['high'], df['low'], df['close'], length=14)
-             if adx is not None: df['ADX'] = adx['ADX_14']
+        # Indicators are now pre-calculated in DataHandler
+        # We assume df has ['EMA_FAST', 'EMA_SLOW', 'EMA_TREND', 'VOL_MA', 'ADX', 'ATR']
 
         # Candle Selection: strictly closed candles
         last_closed = df.iloc[-2]
+        prev_closed = df.iloc[-3]
 
         signal = "NEUTRAL"
 
         # 2. Chop & Trend Filters
-        # ADX Check (Using new threshold 20)
-        adx_val = last_closed.get('ADX', 0)
-        is_trending = adx_val > Config.ADX_THRESHOLD
+        # ADX Check: > Threshold AND Rising (ADX[-2] > ADX[-3])
+        adx_current = last_closed.get('ADX', 0)
+        adx_prev = prev_closed.get('ADX', 0)
+
+        is_trending = (adx_current > Config.ADX_THRESHOLD) and (adx_current > adx_prev)
 
         if not is_trending:
             return "NEUTRAL"
@@ -46,8 +40,6 @@ class Strategy:
         trend_bearish = last_closed['close'] < last_closed['EMA_TREND']
 
         # 4. Trigger Events (on Closed Candle)
-
-        # Strict Pattern Breakout ONLY
         pattern_signal = self._detect_pattern_breakout_safe(df)
 
         # 5. Volume Confirmation
