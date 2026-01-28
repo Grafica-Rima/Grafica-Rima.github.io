@@ -1,5 +1,5 @@
 //@version=5
-strategy("Institutional 5m Crypto Strategy v3 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
+strategy("Institutional 5m Crypto Strategy v4 [Jules]", overlay=true, process_orders_on_close=true, calc_on_every_tick=false, initial_capital=1000, commission_type=strategy.commission.percent, commission_value=0.04, default_qty_type=strategy.percent_of_equity, default_qty_value=15)
 
 // ==========================================
 // 1. INPUTS & CONFIGURATION
@@ -14,14 +14,20 @@ use_vol = input.bool(true, "Use Volume Spike?", group=grp_filt)
 vol_mult = input.float(1.5, "Vol Multiplier", group=grp_filt)
 use_rsi = input.bool(true, "Use RSI Rejection?", group=grp_filt)
 
+grp_sess = "Time / Session Filter"
+use_session = input.bool(true, "Trade Only Specific Session?", group=grp_sess)
+session_time = input.session("0800-1600", "Session Time (UTC)", group=grp_sess, tooltip="Format: HHMM-HHMM. Example: 0800-1600 for London/NY Overlap")
+
 grp_piv = "Market Structure (Pivots)"
-left_bars = input.int(15, "Pivot Left Bars (Major)", group=grp_piv)
-right_bars = input.int(5, "Pivot Right Bars (Fast)", group=grp_piv)
+left_bars = input.int(5, "Pivot Left Bars (Faster)", group=grp_piv)
+right_bars = input.int(5, "Pivot Right Bars", group=grp_piv)
 
 grp_risk = "Risk Management"
-rr_ratio = input.float(2.5, "Risk:Reward Ratio", step=0.1, group=grp_risk)
+rr_ratio = input.float(1.5, "Risk:Reward Ratio (Conservative)", step=0.1, group=grp_risk)
 use_be = input.bool(true, "Move to Breakeven?", group=grp_risk)
-be_trigger = input.float(1.0, "Trigger BE at R:R", step=0.1, tooltip="Move SL to Entry when price reaches 1.0x Risk")
+be_trigger = input.float(0.8, "Trigger BE at R:R", step=0.1, tooltip="Move SL to Entry when price reaches 0.8x Risk")
+use_partial = input.bool(true, "Take Partial Profit?", group=grp_risk)
+partial_ratio = input.float(1.0, "Partial TP at R:R", step=0.1)
 
 // ==========================================
 // 2. INDICATORS
@@ -39,14 +45,13 @@ trend_strong_bear = close < ema_1 and ema_1 < ema_2 and ema_2 < ema_3
 vol_sma = ta.sma(volume, 20)
 vol_ok = use_vol ? (volume > vol_sma * vol_mult) : true
 
-// RSI
+// RSI (Momentum)
 rsi = ta.rsi(close, 14)
-// RSI Rejection Logic:
-// Long: RSI was oversold (<35) recently and is now recovering? OR just healthy momentum (>45).
-// User had losses, likely due to catching falling knives.
-// New Logic: Only enter if RSI is > 40 (momentum is there) and < 65 (room to grow).
 rsi_long_ok = use_rsi ? (rsi > 40 and rsi < 65) : true
 rsi_short_ok = use_rsi ? (rsi < 60 and rsi > 35) : true
+
+// Time Filter
+in_session = use_session ? not na(time(timeframe.period, session_time)) : true
 
 // Pivots
 ph = ta.pivothigh(high, left_bars, right_bars)
@@ -65,17 +70,12 @@ if not na(pl)
 // ==========================================
 
 // --- Signal 1: Break of Structure (BOS) with Trend ---
-// Price breaks the last Pivot High in a Bull Trend
+// Faster BOS: Reduced left_bars to 5.
 bos_long = trend_strong_bull and not na(last_ph) and ta.crossover(close, last_ph)
-// Price breaks the last Pivot Low in a Bear Trend
 bos_short = trend_strong_bear and not na(last_pl) and ta.crossunder(close, last_pl)
 
-// --- Signal 2: Pullback to Value (Dynamic Support) ---
-// Price touches EMA 50/100 area in a strong trend and rejects
-// (Simplified to just BOS for now to reduce noise as requested)
-
-valid_long = bos_long and vol_ok and rsi_long_ok
-valid_short = bos_short and vol_ok and rsi_short_ok
+valid_long = bos_long and vol_ok and rsi_long_ok and in_session
+valid_short = bos_short and vol_ok and rsi_short_ok and in_session
 
 // ==========================================
 // 4. EXECUTION & RISK MANAGEMENT
@@ -84,27 +84,28 @@ var float trade_entry = na
 var float trade_sl = na
 var float trade_tp = na
 var bool trade_be_moved = false
+var bool trade_partial_taken = false
 
 // --- ENTRY ---
 if strategy.position_size == 0
     if valid_long
         // Set SL below the breakout candle Low OR the EMA 50 (dynamic support)
-        // A tighter SL improves R:R. Let's use the Low of the breakout sequence (Pivot Right Bars lookback)
         float swing_low = ta.lowest(low, right_bars)
-        trade_sl := math.min(swing_low, close * 0.995) // Max 0.5% risk per trade logic could be here
+        trade_sl := math.min(swing_low, close * 0.995)
         trade_entry := close
         float risk = trade_entry - trade_sl
 
-        // Safety: Minimum SL distance to avoid noise
+        // Safety: Minimum SL
         if risk < close * 0.002
             risk := close * 0.002
             trade_sl := close - risk
 
         trade_tp := trade_entry + (risk * rr_ratio)
         trade_be_moved := false
+        trade_partial_taken := false
 
         strategy.entry("Long", strategy.long, comment="L-BOS")
-        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp)
+        strategy.exit("Exit Long Full", "Long", stop=trade_sl, limit=trade_tp)
 
     if valid_short
         float swing_high = ta.highest(high, right_bars)
@@ -118,31 +119,55 @@ if strategy.position_size == 0
 
         trade_tp := trade_entry - (risk * rr_ratio)
         trade_be_moved := false
+        trade_partial_taken := false
 
         strategy.entry("Short", strategy.short, comment="S-BOS")
-        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp)
+        strategy.exit("Exit Short Full", "Short", stop=trade_sl, limit=trade_tp)
 
-// --- MANAGEMENT (Breakeven) ---
-// If price moves X amount in our favor, move SL to Entry.
-if strategy.position_size > 0 and use_be and not trade_be_moved
-    float risk = trade_entry - trade_sl
-    if high >= trade_entry + (risk * be_trigger)
-        trade_sl := trade_entry * 1.0005 // Slight profit to cover fees
-        trade_be_moved := true
-        strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
-else if strategy.position_size > 0
-    // Persist Exit
-    strategy.exit("Exit Long", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+// --- MANAGEMENT (Partial TP & Breakeven) ---
 
-if strategy.position_size < 0 and use_be and not trade_be_moved
-    float risk = trade_sl - trade_entry
-    if low <= trade_entry - (risk * be_trigger)
-        trade_sl := trade_entry * 0.9995 // Slight profit to cover fees
-        trade_be_moved := true
-        strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="BE", comment_profit="TP")
-else if strategy.position_size < 0
-    // Persist Exit
-    strategy.exit("Exit Short", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP")
+// Current Risk Calculation
+float current_risk_long = trade_entry - trade_sl
+float current_risk_short = trade_sl - trade_entry
+
+// LONG MANAGEMENT
+if strategy.position_size > 0
+    // 1. Partial TP
+    if use_partial and not trade_partial_taken
+        if high >= trade_entry + (current_risk_long * partial_ratio)
+            strategy.exit("Exit Long Partial", "Long", qty_percent=50, limit=close, comment_profit="TP-1")
+            trade_partial_taken := true
+            // Move SL to BE immediately after Partial
+            trade_sl := trade_entry * 1.0005
+            trade_be_moved := true
+
+    // 2. Breakeven (if not triggered by Partial)
+    if use_be and not trade_be_moved
+        if high >= trade_entry + (current_risk_long * be_trigger)
+            trade_sl := trade_entry * 1.0005
+            trade_be_moved := true
+
+    // Persist Remaining Exit
+    strategy.exit("Exit Long Full", "Long", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP-Final")
+
+// SHORT MANAGEMENT
+if strategy.position_size < 0
+    // 1. Partial TP
+    if use_partial and not trade_partial_taken
+        if low <= trade_entry - (current_risk_short * partial_ratio)
+            strategy.exit("Exit Short Partial", "Short", qty_percent=50, limit=close, comment_profit="TP-1")
+            trade_partial_taken := true
+            trade_sl := trade_entry * 0.9995
+            trade_be_moved := true
+
+    // 2. Breakeven
+    if use_be and not trade_be_moved
+        if low <= trade_entry - (current_risk_short * be_trigger)
+            trade_sl := trade_entry * 0.9995
+            trade_be_moved := true
+
+    // Persist Remaining Exit
+    strategy.exit("Exit Short Full", "Short", stop=trade_sl, limit=trade_tp, comment_loss="SL", comment_profit="TP-Final")
 
 // ==========================================
 // 5. VISUALIZATION
@@ -153,3 +178,6 @@ plot(ema_3, "EMA 200", color=color.blue, linewidth=2)
 
 // Paint candles where trend is perfect
 barcolor(trend_strong_bull ? color.green : (trend_strong_bear ? color.red : na))
+
+// Background for Session
+bgcolor(in_session ? color.new(color.blue, 95) : na, title="Active Session")
